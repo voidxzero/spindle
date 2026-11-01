@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.7.1
+- Removing the disc (or opening the tray) now clears its details, track list, cover art and
+  now-playing info, and cancels a pending auto-rip; the log and Open folder are kept
+- A cover search that finishes after the disc was swapped no longer lands on the new disc
+- README: key-disc offset detection is no longer listed as unsupported
+
 ## 1.7.0
 - Detect the drive's read offset with a key disc (any CD in the AccurateRip database), the same
   frame-450 method EAC and CUETools use - works for drives missing from AccurateRip's list

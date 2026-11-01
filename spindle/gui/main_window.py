@@ -833,13 +833,40 @@ class MainWindow(QMainWindow):
             self._no_disc("TRAY OPEN" if st == CDS_TRAY_OPEN else "NO DISC")
 
     def _no_disc(self, text="NO DISC"):
-        """Disc gone. Keep the last disc's info and results on screen until the next disc is read."""
+        """Disc gone: clear everything that belonged to it (details, tracks, cover, now playing).
+        The log keeps the record, and Open folder still points at the last rip."""
         self.player.set_disc(None, None)
         self.toc = None
+        self._lookup_serial += 1                   # drop any lookup still in flight for the old disc
+        self._auto_rip_pending = False
+        if self._counting:
+            self._stop_countdown("Auto-rip cancelled - the disc was removed")
+        self._clear_disc_fields()
         self.lcd.setText(text)
         self._update_status_bar()
         self._set_busy(False)
         self._update_player_buttons()
+
+    def _clear_disc_fields(self):
+        self.album = None
+        self.candidates = []
+        self.release_box.clear()
+        for w in (self.f_artist, self.f_album, self.f_year, self.f_label, self.f_catalog):
+            w.clear()
+        self.f_genre.setCurrentText("")
+        self.f_disc.setValue(1)
+        self.f_discs.setValue(1)
+        self.f_va.setChecked(False)
+        self.table.setRowCount(0)
+        self.cover_lbl.set_loading(False)
+        self._remove_cover()
+        self._mark_playing(None)
+        self._pl_base = "Not playing"
+        self._set_pl_text(self._pl_base)
+        self.pl_seek.setValue(0)
+        self.pl_seek.setEnabled(False)
+        self.pl_cur.setText("0:00")
+        self.pl_total.setText("0:00")
 
     def read_disc(self):
         if not self.drive or self.busy:
@@ -1104,12 +1131,15 @@ class MainWindow(QMainWindow):
     # ================================================================== cover
     def _auto_cover(self, then=None):
         album = self._collect()
+        toc = self.toc
         self._working("Finding cover art…")
         self.cover_lbl.set_loading(True)
 
         def done(c):
             self._idle()
             self.cover_lbl.set_loading(False)
+            if self.toc is not toc:
+                return                             # the disc changed while we were searching
             if c:
                 self._set_cover(c)
             else:
@@ -1121,7 +1151,7 @@ class MainWindow(QMainWindow):
             self._idle()
             self.cover_lbl.set_loading(False)
             self.log(f"Cover search failed: {m}")
-            if then:
+            if then and self.toc is toc:
                 then()
         run_async(coverart.auto_pick, self.cfg, album, self._log_from_thread, on_done=done, on_error=fail)
 

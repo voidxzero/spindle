@@ -182,5 +182,4 @@ Spindle is free software, released under the [GNU General Public License v3.0](L
 
 ## Not (yet) supported
 
-Hidden track one audio (HTOA) and pre-gap detection, CD-Text reading, and AccurateRip offset
-detection from a key disc (the offset comes from the AccurateRip drive list instead).
+Hidden track one audio (HTOA) and pre-gap detection, and CD-Text reading.
