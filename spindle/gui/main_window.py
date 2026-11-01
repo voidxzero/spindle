@@ -23,8 +23,8 @@ from .player import CDPlayer
 from .tagger_page import TaggerPage
 from . import icons
 from .themes import THEMES, colors, stylesheet, theme_names
-from .widgets import (PROGRESS_ROLE, STATE_ROLE, CoverLabel, LoadingOverlay, Spinner, StatusDelegate,
-                      Visualizer, unify_heights)
+from .widgets import (PROGRESS_ROLE, STATE_ROLE, CheckDelegate, CoverLabel, LoadingOverlay, Spinner,
+                      StatusDelegate, Visualizer, unify_heights)
 from .workers import QtReporter, run_async
 
 
@@ -339,6 +339,8 @@ class MainWindow(QMainWindow):
         self.table.addAction(play_sel)
         self.delegate = StatusDelegate(colors(self.cfg["ui"]["theme"]), self.table)
         self.table.setItemDelegateForColumn(C_STATUS, self.delegate)
+        self.check_delegate = CheckDelegate(None, self.table)
+        self.table.setItemDelegateForColumn(C_CHECK, self.check_delegate)
         self.table.setColumnHidden(C_ARTIST, True)
         return self.table
 
@@ -615,6 +617,8 @@ class MainWindow(QMainWindow):
     # ================================================================ helpers
     def apply_theme(self, name):
         QApplication.instance().setStyleSheet(stylesheet(name))
+        if hasattr(self, "check_delegate"):
+            self.check_delegate.skin = THEMES.get(name)          # None -> native checkboxes
         if hasattr(self, "pl_play"):
             self._refresh_icons()
         self._unify()

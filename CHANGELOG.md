@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.1
+- Track checkboxes are drawn by Spindle itself, so they show on every row in every skin
+  (Qt's style sheets skipped them on alternating rows)
+- Loading overlays always fill the area they cover (the cover art window showed it half-size)
+
 ## 1.4.0
 - Cover art editor: crop (free or square, drag to move/resize), rotate, trim plain borders, resize
 - Tag Files: **Save Cover Only** and **Add Covers to All…** embed artwork without touching any other tag

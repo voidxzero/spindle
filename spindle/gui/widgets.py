@@ -247,6 +247,7 @@ class LoadingOverlay(QWidget):
     def __init__(self, parent: QWidget):
         super().__init__(parent)
         self._host = parent
+        self._active = False
         self.setAttribute(Qt.WA_StyledBackground, False)
         self.card = QWidget(self)
         self.card.setObjectName("loadingCard")
@@ -264,28 +265,37 @@ class LoadingOverlay(QWidget):
         self.hide()
 
     def show_message(self, text: str):
+        self._active = True
         self.label.setText(text)
-        self.setGeometry(self._host.rect())
-        self.card.adjustSize()
-        self._center()
+        self._fit()
         self.raise_()
         self.show()
         self.spin.start()
 
     def finish(self):
+        self._active = False
         self.spin.stop()
         self.hide()
 
-    def _center(self):
+    def _fit(self):
+        """Cover the whole host and centre the card. Called whenever the host changes size, because
+        a dialog may start a search before it has been laid out at its final size."""
+        self.setGeometry(self._host.rect())
+        self.label.adjustSize()
+        self.card.adjustSize()
         self.card.move(max(0, (self.width() - self.card.width()) // 2),
                        max(0, (self.height() - self.card.height()) // 2))
 
     def eventFilter(self, obj, ev):
         from PySide6.QtCore import QEvent
-        if obj is self._host and ev.type() == QEvent.Resize and self.isVisible():
-            self.setGeometry(self._host.rect())
-            self._center()
+        if obj is self._host and getattr(self, "_active", False) and ev.type() in (
+                QEvent.Resize, QEvent.Show, QEvent.LayoutRequest, QEvent.Polish):
+            self._fit()
         return False
+
+    def showEvent(self, e):
+        self._fit()
+        super().showEvent(e)
 
     def paintEvent(self, _):
         p = QPainter(self)
@@ -368,3 +378,80 @@ class Visualizer(QWidget):
                 y = h - 3 - pk * (seg + 1) + 1
                 p.fillRect(x, y, 4, 1, QColor("#d8d8d8"))
         p.end()
+
+
+class CheckDelegate(QStyledItemDelegate):
+    """Draws the track-list checkboxes itself. Qt's style sheets skip the check indicator on
+    alternating rows, so in the skins the boxes vanished on every other row. ``skin`` is the skin's
+    colour dict, or None for the System theme (native checkboxes)."""
+
+    SIZE = 15
+
+    def __init__(self, skin: dict | None = None, parent=None):
+        super().__init__(parent)
+        self.skin = skin
+
+    def _box(self, option) -> QRectF:
+        r = option.rect
+        s = self.SIZE
+        return QRectF(r.x() + (r.width() - s) / 2, r.y() + (r.height() - s) / 2, s, s)
+
+    def paint(self, painter: QPainter, option, index):
+        state = index.data(Qt.CheckStateRole)
+        opt = QStyleOptionViewItem(option)
+        self.initStyleOption(opt, index)
+        opt.features &= ~QStyleOptionViewItem.HasCheckIndicator
+        opt.text = ""
+        widget = opt.widget
+        style = widget.style() if widget else QApplication.style()
+        style.drawControl(QStyle.CE_ItemViewItem, opt, painter, widget)      # row background / selection
+        if state is None:
+            return
+        checked = Qt.CheckState(state) == Qt.Checked if not isinstance(state, bool) else state
+        enabled = bool(index.flags() & Qt.ItemIsUserCheckable) and bool(option.state & QStyle.State_Enabled)
+        box = self._box(option)
+        if self.skin is None:                                                  # System theme: native look
+            chk = QStyleOptionViewItem(option)
+            chk.rect = box.toRect()
+            chk.state = (chk.state & ~(QStyle.State_On | QStyle.State_Off)) | (QStyle.State_On if checked else QStyle.State_Off)
+            style.drawPrimitive(QStyle.PE_IndicatorItemViewItemCheck, chk, painter, widget)
+            return
+        k = self.skin
+        hover = bool(option.state & QStyle.State_MouseOver)
+        if checked:
+            fill, edge = QColor(k["accent"] if enabled else k["dim"]), QColor(k["accent"] if enabled else k["dim"])
+        else:
+            fill = QColor(k["btn_top"] if enabled else k["btn_bot"])
+            edge = QColor(k["accent"] if (hover and enabled) else (k["dim"] if enabled else k["border"]))
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(QPen(edge, 1.5))
+        painter.setBrush(fill)
+        painter.drawRoundedRect(box.adjusted(0.75, 0.75, -0.75, -0.75), 3, 3)
+        if checked:
+            pen = QPen(QColor(k["accent_text"] if enabled else k["btn_bot"]), 2.2)
+            pen.setCapStyle(Qt.RoundCap)
+            pen.setJoinStyle(Qt.RoundJoin)
+            painter.setPen(pen)
+            x, y, s = box.x(), box.y(), box.width()
+            painter.drawPolyline([QPointF(x + s * .24, y + s * .52), QPointF(x + s * .42, y + s * .70),
+                                  QPointF(x + s * .77, y + s * .30)])
+        painter.restore()
+
+    def editorEvent(self, event, model, option, index):
+        from PySide6.QtCore import QEvent
+        if not (index.flags() & Qt.ItemIsUserCheckable) or not (index.flags() & Qt.ItemIsEnabled):
+            return False
+        t = event.type()
+        if t == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
+            pass                                      # anywhere in the (narrow) cell toggles it
+        elif t == QEvent.MouseButtonDblClick:
+            return True                               # swallow, so a double-click doesn't toggle twice
+        elif t == QEvent.KeyPress and event.key() in (Qt.Key_Space, Qt.Key_Select):
+            pass
+        else:
+            return False
+        cur = index.data(Qt.CheckStateRole)
+        cur = Qt.CheckState(cur) if cur is not None and not isinstance(cur, bool) else cur
+        new = Qt.Unchecked if cur == Qt.Checked else Qt.Checked
+        return model.setData(index, new, Qt.CheckStateRole)
