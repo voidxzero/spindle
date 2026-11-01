@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.11.1
+- The Settings button is always available, also while a disc is being read or looked up (the
+  "please wait" shading no longer covers the button column)
+
 ## 1.11.0
 - Settings and **Open folder** stay available during a rip. Open folder shows the album folder being
   written (before your first rip, your music folder)
