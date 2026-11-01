@@ -19,6 +19,7 @@ PATHS = {
     "imagefile": f'<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" {S}/>'
                  f'<path d="M14 3v5h5" {S}/><circle cx="12" cy="14.5" r="3.2" {S}/>',
     "eject": f'<path d="M12 5l7 8H5z" {S}/><path d="M5 18h14" {S}/>',
+    "close": f'<path d="M5 6h14" {S}/><path d="M12 19l7-8H5z" {S}/>',   # eject flipped: close the tray
     "settings": f'<path d="M4 7h16M4 12h16M4 17h16" {S}/><circle cx="9" cy="7" r="2" fill="{{bg}}" stroke="{{c}}" '
                 f'stroke-width="1.8"/><circle cx="15" cy="12" r="2" fill="{{bg}}" stroke="{{c}}" stroke-width="1.8"/>'
                 f'<circle cx="8" cy="17" r="2" fill="{{bg}}" stroke="{{c}}" stroke-width="1.8"/>',
@@ -156,6 +157,12 @@ def _glossy_body(name: str, accent: str) -> str:
                 + f'<path d="M12 4 L20 13 H4 Z" fill="url(#acc)" stroke="{edge}" stroke-width="0.9" stroke-linejoin="round"/>'
                 + f'<rect x="4" y="15.5" width="16" height="3.6" rx="1" fill="url(#acc)" stroke="{edge}" stroke-width="0.9"/>'
                 + '<path d="M12 5.6 L16.4 10.6 H7.6 Z" fill="#ffffff" opacity="0.30"/>')
+    if name == "close":                          # eject flipped: bar on top, arrow pointing in
+        return ("<defs>" + acc + "</defs>"
+                + _shadow('<path d="M12 20 L20 11 H4 Z M4 4.9 H20 V8.5 H4 Z" fill="#000"/>')
+                + f'<path d="M12 20 L20 11 H4 Z" fill="url(#acc)" stroke="{edge}" stroke-width="0.9" stroke-linejoin="round"/>'
+                + f'<rect x="4" y="4.9" width="16" height="3.6" rx="1" fill="url(#acc)" stroke="{edge}" stroke-width="0.9"/>'
+                + '<path d="M7.6 12.4 H16.4 L14.6 14.4 H9.4 Z" fill="#ffffff" opacity="0.30"/>')
     if name == "settings":
         gear = _gear_path(12, 12, 9.4, 7.0, 8)
         return ("<defs>" + _lin("m", (0, "#f3f5f8"), (0.5, "#b9c0cb"), (1, "#7b8494")) + "</defs>"

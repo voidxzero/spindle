@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.11.0
+- Settings and **Open folder** stay available during a rip. Open folder shows the album folder being
+  written (before your first rip, your music folder)
+- While a rip is running, the settings it uses (drive, read offset, read mode, output and formats) are
+  greyed out until it finishes; sound, eject and auto-rip options can still be changed
+- When the drive's tray is open, the **Eject** button becomes **Close** and closes it (Ctrl+E too)
+- Greyed-out controls now look greyed out in the retro skins as well
+
 ## 1.10.0
 - Settings ▸ Updates has a **Check for updates now** button. It checks the repository typed in the
   box (no need to save first) and offers **Update…** when there's a new version

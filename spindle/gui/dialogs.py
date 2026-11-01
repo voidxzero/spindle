@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import os
 
-from PySide6.QtCore import QSize, Qt, QUrl
+from PySide6.QtCore import QSize, Qt, QTimer, QUrl
 from PySide6.QtGui import QDesktopServices, QIcon, QPixmap
 from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
                                QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
@@ -320,13 +320,20 @@ class CoverDialog(QDialog):
 
 # ---------------------------------------------------------------------------
 class SettingsDialog(QDialog):
-    def __init__(self, cfg, drive: DriveInfo | None, parent=None, key_disc=None):
+    def __init__(self, cfg, drive: DriveInfo | None, parent=None, key_disc=None, ripping=None):
         super().__init__(parent)
         self.cfg, self.drive = cfg, drive
         self.key_disc = key_disc or (lambda: (None, None))     # -> (Drive, TOC) of the disc in the drive
+        self.ripping = ripping or (lambda: False)              # settings can be opened mid-rip
         self.setWindowTitle("Spindle settings")
         self.resize(760, 600)
         lay = QVBoxLayout(self)
+        self.rip_note = QLabel("A rip is in progress, so the settings it uses (drive, read mode, output and "
+                               "formats) are locked until it finishes.")
+        self.rip_note.setWordWrap(True)
+        self.rip_note.setObjectName("dim")
+        self.rip_note.hide()
+        lay.addWidget(self.rip_note)
         self.tabs = QTabWidget()
         lay.addWidget(self.tabs, 1)
         self._drive_tab()
@@ -341,6 +348,42 @@ class SettingsDialog(QDialog):
         bb.accepted.connect(self._save)
         bb.rejected.connect(self.reject)
         lay.addWidget(bb)
+        self._rip_lock = None
+        if self.ripping():
+            self._lock_for_rip(True)
+            self._rip_timer = QTimer(self)          # unlock by itself when the rip finishes
+            self._rip_timer.timeout.connect(self._check_rip_done)
+            self._rip_timer.start(500)
+
+    # --- locked while ripping ----------------------------------------------
+    def _rip_locked_widgets(self) -> list:
+        """What a rip in progress depends on: the drive and how it's read, and the Output/Formats tabs.
+        (The rip uses its own copy of the settings, but changing these mid-rip would look like it
+        changed the rip, and the offset tools read the drive.) Sound, eject and auto-rip stay editable:
+        they're read when the rip finishes or for the next disc."""
+        out = [self.device, self.offset, self.b_detect, self.b_keydisc, self.paranoia, self.retries,
+               self.tnc, self.rereads]
+        form = self.device.parentWidget().layout()
+        for field in (self.device, self._offset_row, self.paranoia, self.retries, self.rereads):
+            lbl = form.labelForField(field)
+            if lbl is not None:
+                out.append(lbl)
+        for i in range(self.tabs.count()):
+            if self.tabs.tabText(i) in ("Output", "Formats"):
+                out.append(self.tabs.widget(i))
+        return out
+
+    def _lock_for_rip(self, locked: bool):
+        if self._rip_lock is None:
+            self._rip_lock = self._rip_locked_widgets()
+        for wdg in self._rip_lock:
+            wdg.setEnabled(not locked)
+        self.rip_note.setVisible(locked)
+
+    def _check_rip_done(self):
+        if not self.ripping():
+            self._rip_timer.stop()
+            self._lock_for_rip(False)
 
     # --- Drive -------------------------------------------------------------
     def _drive_tab(self):
@@ -372,12 +415,14 @@ class SettingsDialog(QDialog):
         self.b_keydisc.clicked.connect(self._detect_keydisc)
         off_row.addWidget(self.b_keydisc)
         off_row.addStretch(1)
+        self._offset_row = off_row
         f.addRow("Read offset correction", off_row)
         hint = QLabel("Every drive model reads audio a few samples early or late. Look yours up in AccurateRip's "
                       "drive list, or measure it with any well-known CD (a \"key disc\"). Correcting for it is what "
                       "makes AccurateRip verification possible. Set it once; Spindle remembers it per drive.")
         hint.setWordWrap(True)
         hint.setObjectName("dim")
+        hint.setMinimumWidth(420)   # else the form sizes the wrapped text for a narrow column: big gap
         f.addRow("", hint)
         self.paranoia = QComboBox()
         for k, lbl in (("full", "Secure – full paranoia (recommended)"),
@@ -492,6 +537,10 @@ class SettingsDialog(QDialog):
                   on_error=lambda m: (idle(), QMessageBox.warning(self, "Offset", f"Lookup failed: {m}")))
 
     def _detect_keydisc(self):
+        if self.ripping():                      # reading the drive now would spoil the secure rip
+            QMessageBox.information(self, "Key disc", "Spindle is ripping. Measure the offset once the rip "
+                                    "has finished - reading the disc now would disturb it.")
+            return
         drive, toc = self.key_disc()
         if drive is None or toc is None:
             QMessageBox.information(self, "Key disc", "Insert an ordinary music CD and let Spindle read it first "

@@ -117,6 +117,7 @@ def stylesheet(name: str) -> str:
                                             "cb_off_dis", "cb_on_dis", "rb_off", "rb_off_hover", "rb_on")})
     return """
 * { font-family: %(FONT)s; font-size: 9pt; color: %(text)s; }
+*:disabled { color: %(dim)s; }
 QMainWindow, QDialog { background: %(bg)s; }
 QWidget#central { background: %(bg)s; }
 QToolTip { background: %(inset)s; color: %(text)s; border: 1px solid %(accent)s; padding: 4px; }

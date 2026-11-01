@@ -60,6 +60,10 @@ to stop it). With several matching releases it uses the best one; if nothing mat
 you rather than ripping an unknown album. Add **Eject when the rip is finished** to feed discs in one
 after another. A disc that's already in the drive when Spindle starts is never ripped automatically.
 
+During a rip you can still open **Settings** (the drive, output and format settings it's using are
+greyed out until it finishes) and **Open folder** to watch the album being written. When the tray is
+open, the **Eject** button becomes **Close**.
+
 ## Finish sound
 
 When a rip finishes, Spindle plays a short rising chime, or a lower two-note tone if any track had

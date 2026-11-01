@@ -56,6 +56,7 @@ class MainWindow(QMainWindow):
         self.job: RipJob | None = None
         self.busy = False
         self._last_status = -1
+        self._tray_open = False
         self._lookup_serial = 0
         self._auto_rip_pending = False
         self._countdown_left = 0
@@ -171,6 +172,8 @@ class MainWindow(QMainWindow):
         for w, key, fb in getattr(self, "_mono_icons", []):
             if w is self.pl_play:
                 key = "pause" if self.player.state in ("playing", "buffering") else "play"
+            elif w is getattr(self, "b_eject", None):
+                key = "close" if self._tray_open else "eject"
             self._apply_mono(w, key, fb)
 
     def _rail_button(self, text, icon, slot, tip, accent=False):
@@ -576,7 +579,7 @@ class MainWindow(QMainWindow):
         self.b_cancel.setEnabled(False)
         self.b_cancel.clicked.connect(self.cancel)
         self.b_open = QPushButton("Open folder")
-        self.b_open.setEnabled(False)
+        self.b_open.setToolTip("Open the folder of the current or last rip (or your music folder)")
         self.b_open.clicked.connect(self._open_output)
         lay.addWidget(self.prog_label)
         lay.addWidget(self.prog, 1)
@@ -596,8 +599,7 @@ class MainWindow(QMainWindow):
             return a
         m = mb.addMenu("&Disc")
         act(m, "Read disc", self.read_disc, "F5")
-        act(m, "Eject", self.do_eject, "Ctrl+E")
-        act(m, "Close tray", lambda: self._eject(close=True))
+        self.a_eject = act(m, "Close tray" if self._tray_open else "Eject", self.do_eject, "Ctrl+E")
         m.addSeparator()
         act(m, "Quit", self.close, "Ctrl+Q")
         m = mb.addMenu("&Metadata")
@@ -722,7 +724,7 @@ class MainWindow(QMainWindow):
     def _set_busy(self, busy: bool, ripping: bool = False):
         self.busy = busy
         for b in (self.b_read, self.b_lookup, self.b_cover, self.b_rip, self.b_image, self.b_eject,
-                  self.b_settings, self.drive_box, self.b_search, self.release_box):
+                  self.drive_box, self.b_search, self.release_box):
             b.setEnabled(not busy)
         self.b_cancel.setEnabled(ripping)
         self._lock_edits(ripping)
@@ -784,6 +786,7 @@ class MainWindow(QMainWindow):
         else:
             self.drive = None
         self._last_status = -1
+        self._set_tray_open(False)
         self._update_status_bar()
         if info and info.model and info.accuraterip_name not in self.cfg["drive"].get("offsets_by_model", {}):
             self.log(f"Tip: set the read offset for {info.name} in Settings ▸ Drive (\"Look up in AccurateRip\").")
@@ -839,6 +842,7 @@ class MainWindow(QMainWindow):
             st = CDS_DISC_OK
         else:
             st = drive_status(self.drive.device)
+        self._set_tray_open(st == CDS_TRAY_OPEN)
         if st == self._last_status:
             return
         prev, self._last_status = self._last_status, st
@@ -937,7 +941,6 @@ class MainWindow(QMainWindow):
         self._update_status_bar()
         self.log(f"Disc: {len(toc.audio_tracks)} audio tracks, MusicBrainz ID {toc.musicbrainz_id()}, "
                  f"FreeDB {toc.freedb_id():08x}" + (f", MCN {toc.mcn}" if toc.mcn else ""))
-        self.b_open.setEnabled(False)
         self.prog.setValue(0)
         self.prog_label.setText("Ready")
         self._update_player_buttons()
@@ -957,7 +960,8 @@ class MainWindow(QMainWindow):
         return -1
 
     def do_eject(self):
-        self._eject(False)
+        """The Eject button: opens the tray, or closes it when it's already open."""
+        self._eject(close=self._tray_open)
 
     def _eject(self, close=False):
         if not self.drive or isinstance(self.drive, SimulatedDrive):
@@ -966,8 +970,22 @@ class MainWindow(QMainWindow):
             eject(self.drive.device, close)
         except DriveError as e:
             self.log(str(e))
+            return
+        self._set_tray_open(not close)          # the next drive poll confirms (or corrects) this
         if not close:
             self._no_disc("TRAY OPEN")
+
+    def _set_tray_open(self, is_open: bool):
+        """Eject turns into Close while the tray is open."""
+        if is_open == self._tray_open or not hasattr(self, "b_eject"):
+            self._tray_open = is_open
+            return
+        self._tray_open = is_open
+        self.b_eject.setText("Close" if is_open else "Eject")
+        self.b_eject.setToolTip("Close the tray (Ctrl+E)" if is_open else "Eject (Ctrl+E)")
+        if hasattr(self, "a_eject"):
+            self.a_eject.setText("Close tray" if is_open else "Eject")
+        self._refresh_icons()
 
     # =============================================================== metadata
     def lookup(self):
@@ -1273,7 +1291,6 @@ class MainWindow(QMainWindow):
         self.rep.finished_track.connect(self._on_track_done)
         self.job = RipJob(cfg, self.drive, self.toc, album, tracks, self.cover, self.rep)
         self._set_busy(True, ripping=True)
-        self.b_open.setEnabled(False)
         self.prog.setValue(0)
         self.prog_label.setText("Ripping…")
         self.lcd.setText("RIPPING")
@@ -1419,7 +1436,6 @@ class MainWindow(QMainWindow):
         job = self.job
         self._set_busy(False)
         self.lcd.setText("DONE" if ok else ("CANCELLED" if job.cancel.is_set() else "DONE - CHECK LOG"))
-        self.b_open.setEnabled(bool(job.output_dir))
         good = sum(1 for r in job.results.values() if r.good)
         acc = sum(1 for r in job.results.values() if r.ar and r.ar.status == "accurate")
         if not job.cancel.is_set():
@@ -1447,13 +1463,26 @@ class MainWindow(QMainWindow):
             self.log(f"Couldn't play the finish sound: {e}")
 
     def _open_output(self):
-        if self.job and self.job.output_dir:
-            QDesktopServices.openUrl(QUrl.fromLocalFile(self.job.output_dir))
+        """During a rip, the album folder it's writing to; afterwards, the last rip's folder; before any
+        rip, the music folder. Folders that don't exist yet fall back to the nearest one that does."""
+        job = self.job
+        if job and self.busy and self.b_cancel.isEnabled() and job.formats and job.track_order:
+            n = None if job.cfg["output"].get("mode") == "image" else job.track_order[0]
+            target = os.path.dirname(job._path_for(job.formats[0], n))
+        elif job and job.output_dir:
+            target = job.output_dir
+        else:
+            target = os.path.expanduser(self.cfg["output"]["directory"] or "~/Music")
+        while not os.path.isdir(target) and os.path.dirname(target) != target:
+            target = os.path.dirname(target)
+        if os.path.isdir(target):
+            QDesktopServices.openUrl(QUrl.fromLocalFile(target))
 
     # =============================================================== settings
     def settings(self, tab: int = 0):
         self.player.stop()                      # key-disc detection needs the drive
-        dlg = SettingsDialog(self.cfg, self._drive_info(), self, key_disc=lambda: (self.drive, self.toc))
+        dlg = SettingsDialog(self.cfg, self._drive_info(), self, key_disc=lambda: (self.drive, self.toc),
+                             ripping=lambda: self.busy and self.b_cancel.isEnabled())
         if isinstance(tab, str):
             tab = next((i for i in range(dlg.tabs.count()) if dlg.tabs.tabText(i) == tab), 0)
         if isinstance(tab, int):
