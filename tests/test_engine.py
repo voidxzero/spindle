@@ -140,3 +140,34 @@ if __name__ == "__main__":
         if name.startswith("test_"):
             fn()
             print("ok", name)
+
+
+def test_keydisc_offset():
+    """A simulated drive that reads N samples early/late; the database holds the true frame-450 CRCs."""
+    import numpy as np
+    from spindle.ripper import SimulatedDrive
+    toc = TOC.from_offsets([0, 2000, 4500, 7000], 9000)
+    truth = SimulatedDrive(toc)                      # true_offset 0 -> perfect audio
+    entries = []
+    for t in toc.audio_tracks:
+        s = truth.open_stream(t.start + 450, t.start + 450)
+        frame = np.frombuffer(s.read(2352), "<u4").astype(np.uint64)
+        crc = int((frame * np.arange(1, 589, dtype=np.uint64)).sum() & np.uint64(0xFFFFFFFF))
+        entries.append((5, 0x1234, crc))
+    db = [accuraterip.ARResponse(4, 0, 0, 0, entries)]
+    for true in (6, -1164, 667, 0):
+        drive = SimulatedDrive(toc)
+        drive.true_offset = true
+        res = accuraterip.detect_offset_keydisc(drive, toc, db, max_offset=3000)
+        assert res and res[0].offset == true and res[0].tracks_matched == 4 == res[0].tracks_tested, (true, res[:3])
+    # a second pressing shifted by 30 samples shows up as a second, weaker candidate
+    shifted = SimulatedDrive(toc); shifted.true_offset = -30
+    e2 = []
+    for t in toc.audio_tracks[:2]:
+        s = shifted.open_stream(t.start + 450, t.start + 450)
+        fr = np.frombuffer(s.read(2352), "<u4").astype(np.uint64)
+        e2.append((2, 0, int((fr * np.arange(1, 589, dtype=np.uint64)).sum() & np.uint64(0xFFFFFFFF))))
+    db2 = db + [accuraterip.ARResponse(2, 0, 0, 0, e2 + [(0, 0, 0), (0, 0, 0)])]
+    drive = SimulatedDrive(toc); drive.true_offset = 6
+    res = accuraterip.detect_offset_keydisc(drive, toc, db2)
+    assert res[0].offset == 6 and res[0].tracks_matched == 4 and res[1].offset == 36, res[:3]

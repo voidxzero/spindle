@@ -319,9 +319,10 @@ class CoverDialog(QDialog):
 
 # ---------------------------------------------------------------------------
 class SettingsDialog(QDialog):
-    def __init__(self, cfg, drive: DriveInfo | None, parent=None):
+    def __init__(self, cfg, drive: DriveInfo | None, parent=None, key_disc=None):
         super().__init__(parent)
         self.cfg, self.drive = cfg, drive
+        self.key_disc = key_disc or (lambda: (None, None))     # -> (Drive, TOC) of the disc in the drive
         self.setWindowTitle("Spindle settings")
         self.resize(760, 600)
         lay = QVBoxLayout(self)
@@ -364,10 +365,16 @@ class SettingsDialog(QDialog):
         off_row.addWidget(self.offset)
         off_row.addWidget(detect)
         off_row.addWidget(self.detect_spin)
+        self.b_keydisc = QPushButton("Detect with a key disc…")
+        self.b_keydisc.setToolTip("Measure the offset using the CD in the drive. It must be a disc that's in the "
+                                  "AccurateRip database - most commercially released CDs are.")
+        self.b_keydisc.clicked.connect(self._detect_keydisc)
+        off_row.addWidget(self.b_keydisc)
         off_row.addStretch(1)
         f.addRow("Read offset correction", off_row)
-        hint = QLabel("Every drive model reads audio a few samples early or late. Correcting for it is what "
-                      "makes AccurateRip verification possible. Look yours up once; Spindle remembers it per drive.")
+        hint = QLabel("Every drive model reads audio a few samples early or late. Look yours up in AccurateRip's "
+                      "drive list, or measure it with any well-known CD (a \"key disc\"). Correcting for it is what "
+                      "makes AccurateRip verification possible. Set it once; Spindle remembers it per drive.")
         hint.setWordWrap(True)
         hint.setObjectName("dim")
         f.addRow("", hint)
@@ -431,6 +438,62 @@ class SettingsDialog(QDialog):
                 QMessageBox.information(self, "Offset", f"{drive.accuraterip_name}: {val:+d} samples")
         run_async(accuraterip.detect_offset, drive, on_done=done,
                   on_error=lambda m: (idle(), QMessageBox.warning(self, "Offset", f"Lookup failed: {m}")))
+
+    def _detect_keydisc(self):
+        drive, toc = self.key_disc()
+        if drive is None or toc is None:
+            QMessageBox.information(self, "Key disc", "Insert an ordinary music CD and let Spindle read it first "
+                                    "(it must be one that's in the AccurateRip database - most commercial CDs are).")
+            return
+        import threading
+        cancel = threading.Event()
+        self.b_keydisc.setEnabled(False)
+        self.b_detect.setEnabled(False)
+        self.b_keydisc.setText("Checking AccurateRip…")
+        self.detect_spin.start()
+
+        def work():
+            responses = accuraterip.lookup(toc)
+            if not responses:
+                return None
+            return accuraterip.detect_offset_keydisc(drive, toc, responses, cancel=cancel)
+
+        def idle():
+            self.detect_spin.stop()
+            self.b_keydisc.setEnabled(True)
+            self.b_detect.setEnabled(True)
+            self.b_keydisc.setText("Detect with a key disc…")
+
+        def done(results):
+            idle()
+            if results is None:
+                QMessageBox.information(self, "Key disc", "This disc isn't in the AccurateRip database, so it can't "
+                                        "be used as a key disc. Try a different, well-known CD.")
+                return
+            if not results:
+                QMessageBox.warning(self, "Key disc", "No offset matched. The disc may be a different pressing from "
+                                    "the ones in the database, or the drive read it with errors. Try another CD.")
+                return
+            best = results[0]
+            others = [r for r in results[1:4] if r.tracks_matched >= max(2, best.tracks_matched // 2)]
+            sure = best.tracks_matched >= 3 or best.tracks_matched == best.tracks_tested
+            msg = (f"Your drive's read offset is <b>{best.offset:+d}</b> samples.<br><br>"
+                   f"Matched on {best.tracks_matched} of {best.tracks_tested} tracks checked.")
+            if others:
+                msg += ("<br><br>Other pressings in the database also matched at "
+                        + ", ".join(f"{r.offset:+d} ({r.tracks_matched} tracks)" for r in others)
+                        + " - the best match above is usually right.")
+            if not sure:
+                msg += "<br><br>Only a few tracks matched, so confirm with a second CD."
+            msg += "<br><br>Use this offset?"
+            if QMessageBox.question(self, "Key disc", msg) == QMessageBox.Yes:
+                self.offset.setValue(best.offset)
+
+        def fail(m):
+            idle()
+            QMessageBox.warning(self, "Key disc", f"Detection failed: {m}")
+        self.b_keydisc.setText("Reading the disc…")
+        run_async(work, on_done=done, on_error=fail)
 
     # --- Output ------------------------------------------------------------
     def _output_tab(self):

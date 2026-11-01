@@ -176,6 +176,7 @@ class _SimStream(PCMStream):
         self.toc = drive.read_toc()
         self.pos = start_lba * 588        # absolute sample
         self.end = (end_lba + 1) * 588
+        self.true_offset = getattr(drive, "true_offset", 0)   # raw[k] = true audio[k - offset]
 
     def read(self, n: int) -> bytes:
         count = min(n // 4, self.end - self.pos)
@@ -183,7 +184,7 @@ class _SimStream(PCMStream):
             return b""
         lba = self.pos // 588
         track = next((t.number for t in self.toc.tracks if t.start <= lba <= t.end), 1)
-        tt = np.arange(self.pos, self.pos + count, dtype=np.float64) / 44100.0
+        tt = (np.arange(self.pos, self.pos + count, dtype=np.float64) - self.true_offset) / 44100.0
         self.pos += count
         return _tone(tt, track).tobytes()
 

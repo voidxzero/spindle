@@ -9,7 +9,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from . import net
-from .disc import TOC, DriveInfo
+from .disc import BYTES_PER_FRAME, TOC, DriveInfo
 
 SKIP = 5 * 588  # samples ignored at the very start of track 1 and very end of the last track
 
@@ -137,3 +137,79 @@ def find_offset(drive: DriveInfo, table: dict[str, int]) -> int | None:
 def detect_offset(drive: DriveInfo) -> int | None:
     page = net.get(OFFSETS_URL, timeout=20).decode("latin-1")
     return find_offset(drive, parse_offset_table(page))
+
+
+# --- key-disc offset detection ---------------------------------------------------------------------
+# The AccurateRip database stores, for every track, a checksum of frame 450 (588 samples, 6 s into the
+# track): sum of sample * position (1..588), mod 2^32. Reading that frame from the drive with no offset
+# correction and testing every candidate shift shows which correction makes the drive's audio line up
+# with everyone else's - i.e. the drive's read offset. (Same method as EAC / CUETools.)
+FRAME = 588
+F450 = 450
+
+
+def frame450_crcs(raw_samples: np.ndarray, first_sample: int, track_start_sample: int,
+                  max_offset: int) -> dict[int, int]:
+    """CRC of frame 450 for every correction in [-max_offset, +max_offset].
+
+    raw_samples: uint32 stereo samples read with no offset correction, the first being absolute sample
+    ``first_sample``. Correction c means the true audio is raw[k + c]."""
+    w = np.arange(1, FRAME + 1, dtype=np.uint64)
+    base = track_start_sample + F450 * FRAME - first_sample          # index of the frame at c = 0
+    lo, hi = base - max_offset, base + max_offset + FRAME
+    if lo < 0 or hi > len(raw_samples):
+        raise ValueError("not enough audio read around frame 450")
+    seg = raw_samples[lo:hi].astype(np.uint64)
+    windows = np.lib.stride_tricks.sliding_window_view(seg, FRAME)    # (2*max_offset+1, 588)
+    with np.errstate(over="ignore"):
+        crcs = (windows * w).sum(axis=1, dtype=np.uint64) & np.uint64(0xFFFFFFFF)
+    return {c: int(v) for c, v in zip(range(-max_offset, max_offset + 1), crcs)}
+
+
+@dataclass
+class OffsetResult:
+    offset: int
+    tracks_matched: int
+    tracks_tested: int
+
+
+def detect_offset_keydisc(drive, toc: TOC, responses: list[ARResponse], max_offset: int = 3000,
+                          progress=lambda frac: None, cancel=None) -> list[OffsetResult]:
+    """Find the drive's read offset from a disc that's in the AccurateRip database.
+    Returns candidates, best first. Each track votes once for every offset whose frame-450 CRC matches
+    one of the database's values for that track (several pressings may give several offsets)."""
+    audio = toc.audio_tracks
+    margin = max_offset // FRAME + 2
+    tested, votes = 0, {}
+    usable = [(i, t) for i, t in enumerate(audio) if t.sectors > F450 + 1 + margin]
+    for n, (idx, t) in enumerate(usable):
+        if cancel is not None and cancel.is_set():
+            break
+        wanted = {r.entries[idx][2] for r in responses if idx < len(r.entries) and r.entries[idx][2]}
+        if not wanted:
+            continue
+        start_lba = t.start + F450 - margin
+        end_lba = t.start + F450 + 1 + margin
+        stream = drive.open_stream(start_lba, end_lba)
+        try:
+            need = (end_lba - start_lba + 1) * BYTES_PER_FRAME
+            buf = b""
+            while len(buf) < need:
+                chunk = stream.read(need - len(buf))
+                if not chunk:
+                    break
+                buf += chunk
+        finally:
+            stream.close()
+        samples = np.frombuffer(buf[: len(buf) // 4 * 4], dtype="<u4")
+        try:
+            crcs = frame450_crcs(samples, start_lba * FRAME, t.start * FRAME, max_offset)
+        except ValueError:
+            continue
+        tested += 1
+        for c, v in crcs.items():
+            if v in wanted:
+                votes[c] = votes.get(c, 0) + 1
+        progress((n + 1) / len(usable))
+    ranked = sorted(votes.items(), key=lambda kv: (-kv[1], abs(kv[0])))
+    return [OffsetResult(c, v, tested) for c, v in ranked]

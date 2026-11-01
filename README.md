@@ -38,8 +38,14 @@ No disc handy? `spindle --simulate` adds a virtual drive so you can try the whol
 
 ## First run: set your drive's read offset
 
-Every drive model reads audio a few samples early or late. Open **Settings ▸ Drive** and press
-**Look up in AccurateRip** — Spindle finds your model in the AccurateRip offset list and remembers it.
+Every drive model reads audio a few samples early or late. Open **Settings ▸ Drive** and either:
+
+- press **Look up in AccurateRip** — Spindle finds your model in the AccurateRip offset list, or
+- insert any well-known CD and press **Detect with a key disc…** — Spindle reads a few sectors of each
+  track and finds the offset that makes them match other people's rips in the AccurateRip database.
+  This works even for drives that aren't in the list; for certainty, confirm with a second CD.
+
+Spindle remembers the offset for each drive model.
 Without the right offset, AccurateRip will report "Not accurate" even for perfect rips.
 
 ## Automatic ripping
@@ -91,7 +97,8 @@ automatically when you rip. A mini Winamp-style spectrum analyser dances along n
 To just add artwork without changing any tags: pick a cover for an album (click the cover box, or
 right-click it to load a file or use an image already in the folder) and press **Save Cover Only**.
 **Add Covers to All…** in the toolbar does every album in the list at once, optionally skipping albums
-that already have artwork. Right-click any cover and choose **Edit / crop…** to crop, rotate or resize it.
+that already have artwork. Right-click any cover and choose **Edit / crop…** to crop, stretch or fit it to a square, rotate it,
+adjust brightness, contrast, saturation and sharpness, fix a faded scan with Auto levels, or resize it.
 
 ### Renaming files in bulk
 
@@ -160,6 +167,7 @@ removes the program and keeps your settings and plugins.
 python3 tests/test_engine.py      # disc IDs, AccurateRip, naming, simulated rips (no disc needed)
 python3 tests/test_tagging.py     # tags + artwork round-trip in every format (needs mutagen, ffmpeg)
 python3 tests/test_tagfiles.py    # Tag Files matching, saving and batch rename
+python3 tests/test_imageadjust.py # cover editor colour adjustments
 ```
 
 ## Requirements

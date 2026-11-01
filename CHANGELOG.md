@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.7.0
+- Detect the drive's read offset with a key disc (any CD in the AccurateRip database), the same
+  frame-450 method EAC and CUETools use - works for drives missing from AccurateRip's list
+- Image button now sits above Rip in the sidebar
+
+## 1.6.0
+- Cover editor: brightness, contrast, saturation and sharpen sliders, plus Auto levels for faded
+  scans - shown live on the picture and in the result preview
+- Spectrum analyser moved to the far right of the player bar
+
+## 1.5.2
+- Cover editor: Shape option - crop to square, stretch to square, fit in square (blurred picture,
+  edge colour, black or white fill) or keep shape - with a live preview of the result
+
 ## 1.5.1
 - Spectrum analyser framed like the other display boxes (LCD bezel in the skins, rounded border in
   the System theme); peak caps readable in light themes

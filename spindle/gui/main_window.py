@@ -194,7 +194,7 @@ class MainWindow(QMainWindow):
         self.b_eject = self._rail_button("Eject", ("eject", S.SP_ArrowUp), self.do_eject, "Eject (Ctrl+E)")
         self.b_settings = self._rail_button("Settings", ("settings", S.SP_FileDialogDetailedView),
                                             self.settings, "Settings (F9)")
-        for b in (self.b_read, self.b_lookup, self.b_cover, self.b_rip, self.b_image):
+        for b in (self.b_read, self.b_lookup, self.b_cover, self.b_image, self.b_rip):
             lay.addWidget(b)
         lay.addStretch(1)
         lay.addWidget(self.b_eject)
@@ -382,8 +382,6 @@ class MainWindow(QMainWindow):
         from ..spectrum import N as _FFT_N
         self.viz = Visualizer(lambda: self.player.now_playing_pcm(_FFT_N * 4),
                               active=lambda: self.player.state in ("playing", "buffering"))
-        lay.addWidget(self.viz)
-        lay.addSpacing(4)
         self.pl_seek = SeekSlider(lambda: self.player.length())
         self.pl_seek.setEnabled(False)
         self.pl_seek.setToolTip("Click anywhere to jump there, or drag")
@@ -409,6 +407,8 @@ class MainWindow(QMainWindow):
         self.pl_vol.setFixedWidth(90)
         self.pl_vol.valueChanged.connect(lambda v: self.player.set_volume(v / 100))
         lay.addWidget(self.pl_vol)
+        lay.addSpacing(10)
+        lay.addWidget(self.viz)              # spectrum analyser at the far right of the player bar
         self.player.position.connect(self._pl_position)
         self.player.track_changed.connect(self._pl_track)
         self.player.state_changed.connect(self._pl_state)
@@ -1396,7 +1396,8 @@ class MainWindow(QMainWindow):
 
     # =============================================================== settings
     def settings(self, tab: int = 0):
-        dlg = SettingsDialog(self.cfg, self._drive_info(), self)
+        self.player.stop()                      # key-disc detection needs the drive
+        dlg = SettingsDialog(self.cfg, self._drive_info(), self, key_disc=lambda: (self.drive, self.toc))
         if isinstance(tab, int):
             dlg.tabs.setCurrentIndex(tab)
         if dlg.exec():
