@@ -22,6 +22,7 @@ spindle/
   encoders.py      FLAC/ALAC/WavPack/WAV/MP3/Opus/Vorbis/AAC (reference encoders, ffmpeg fallback)
   tagger.py        mutagen tagging in "preserve" mode (only touches fields Spindle manages), covers
   tagfiles.py      Tag Files engine: scan, group into albums, identify, save, batch rename, cover-only
+  convert.py       Convert engine: decode (ffmpeg/flac) -> encoders -> copy tags + cover; ConvertJob
   naming.py        %field% templates, [optional] sections, aliases; unknown fields are never written
   metadata/        providers (MusicBrainz, GnuDB) + plugin base classes; plugins/ has a Discogs example
   coverart.py      Cover Art Archive → iTunes → Deezer (configurable order), auto-pick
@@ -34,6 +35,7 @@ spindle/
     app.py           entry point, app icon
     main_window.py   Rip CD page, menus, disc polling, auto-rip, player bar, update bar wiring
     tagger_page.py   Tag Files tab (+ RenameDialog)
+    convert_page.py  Convert tab
     dialogs.py       ReleaseDialog, CoverDialog, SettingsDialog (Drive/Output/Formats/Metadata/Cover art/
                      Plugins/Appearance/Updates)
     widgets.py       StatusDelegate, CheckDelegate, CoverLabel, Spinner, LoadingOverlay, Visualizer,
@@ -57,6 +59,7 @@ python3 tests/test_tagging.py              # tags + artwork in every format (nee
 python3 tests/test_tagfiles.py             # Tag Files matching, saving, rename
 python3 tests/test_imageadjust.py          # cover editor adjustments
 python3 tests/test_updater.py              # update check + install (no network)
+python3 tests/test_convert.py              # Convert: every format, tags + cover, 24-bit, safety
 ruff check --select F,E9 spindle tests     # must pass
 bash -n install.sh
 ```
@@ -80,6 +83,9 @@ install without touching the real one: `HOME=$(mktemp -d) ./install.sh --no-deps
 
    Co-Authored-By: Claude <noreply@anthropic.com>
    ```
+   Only commit user-facing versions. Never make standalone commits for behind-the-scenes changes
+   (CLAUDE.md, project links, helper scripts, README typo fixes and the like). Leave them uncommitted
+   and they go into the next version's commit.
 6. **Don't push** unless the owner says to. They review first. The updater offers whatever version is on
    GitHub's default branch, so pushing a higher `__version__` ships an update to every install.
 

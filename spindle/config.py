@@ -91,6 +91,12 @@ DEFAULTS: dict = {
         "rename": False,              # rename files with the naming template when saving
         "organize": False,            # ...and move them into the music folder
     },
+    "convert": {
+        "format": "mp3",              # what the Convert tab makes
+        "folder": "",                 # empty = next to the originals
+        "copy_tags": True,            # tags and cover art from the original
+        "overwrite": False,           # replace files that already exist (otherwise skip them)
+    },
     "config_version": 2,
 }
 

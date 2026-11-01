@@ -110,6 +110,15 @@ automatically when you rip. A mini Winamp-style spectrum analyser dances along n
    ReplayGain, lyrics, ratings and other apps' tags are kept. Tick *Rename files* (and optionally
    *move them into my music folder*) to apply your naming template too — you're shown a preview first.
 
+### Converting files
+
+The **Convert** tab turns music you already have into another format, such as FLAC to MP3 or Opus for
+your phone. Drop in files or folders, choose **Convert to**, and save **next to the originals** or **in
+a folder** (subfolders are kept, so `Album/01.flac` becomes `folder/Album/01.mp3`). Tags and cover art
+are copied across, 24-bit audio stays 24-bit for lossless formats, and files that already exist are
+skipped unless you tick *Replace*. Your originals are never changed. **Encoder options…** uses the same
+settings as ripping. Reading MP3/AAC/Opus/Vorbis files needs ffmpeg.
+
 ### Cover art only
 
 To just add artwork without changing any tags: pick a cover for an album (click the cover box, or
@@ -188,6 +197,7 @@ python3 tests/test_tagging.py     # tags + artwork round-trip in every format (n
 python3 tests/test_tagfiles.py    # Tag Files matching, saving and batch rename
 python3 tests/test_imageadjust.py # cover editor colour adjustments
 python3 tests/test_updater.py     # update checks and installing (no network needed)
+python3 tests/test_convert.py     # Convert tab: every format, tags + cover, 24-bit, safety
 ```
 
 ## Requirements

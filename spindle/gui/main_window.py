@@ -128,6 +128,10 @@ class MainWindow(QMainWindow):
         self.tagger = TaggerPage(self.cfg, self)
         self.tagger.logged.connect(self.log)
         self.tabs.addTab(self.tagger, "Tag Files")
+        from .convert_page import ConvertPage
+        self.converter = ConvertPage(self.cfg, colors(self.cfg["ui"]["theme"]), open_settings=self.settings, parent=self)
+        self.converter.logged.connect(self.log)
+        self.tabs.addTab(self.converter, "Convert")
         self._build_menu()
         self._build_status()
         self._bridge.message.connect(self.log)
@@ -672,6 +676,8 @@ class MainWindow(QMainWindow):
         self.table.viewport().update()
         if hasattr(self, "tagger"):
             self.tagger.set_colors(colors(name))
+        if hasattr(self, "converter"):
+            self.converter.set_colors(colors(name))
         if hasattr(self, "viz"):
             from PySide6.QtGui import QColor
             self.viz.bg = QColor(colors(name)["lcd_bg"]) if name in THEMES else None   # skins: LCD colour
@@ -689,6 +695,8 @@ class MainWindow(QMainWindow):
             self.cover_lbl.set_side(6 * h + 5 * 8)
         if hasattr(self, "tagger"):
             self.tagger.unify()
+        if hasattr(self, "converter"):
+            self.converter.unify()
 
     def changeEvent(self, e):
         # the desktop switched light/dark: refresh colours derived from the palette
@@ -699,6 +707,8 @@ class MainWindow(QMainWindow):
                 self._refresh_icons()
             if hasattr(self, "tagger"):
                 self.tagger.set_colors(self.delegate.colors)
+            if hasattr(self, "converter"):
+                self.converter.set_colors(self.delegate.colors)
         super().changeEvent(e)
 
     def _working(self, text: str, block: bool = False):
@@ -1600,6 +1610,13 @@ class MainWindow(QMainWindow):
                 e.ignore()
                 return
             self.job.cancel.set()
+        conv = getattr(self, "converter", None)
+        if conv is not None and conv.job is not None:
+            if QMessageBox.question(self, "Quit", "Files are being converted. Stop and quit? "
+                                    "(Files already converted are kept.)") != QMessageBox.Yes:
+                e.ignore()
+                return
+            conv.job.cancel.set()
         self.player.stop()
         self.cfg["ui"]["geometry"] = bytes(self.saveGeometry().toBase64()).decode()
         self.cfg.save()

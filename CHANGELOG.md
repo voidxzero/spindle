@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.13.0
+- New **Convert** tab: turn music you already have into another format (FLAC, ALAC, WavPack, WAV, MP3,
+  Opus, Ogg Vorbis, AAC). Drop in files or folders, pick a format, and save next to the originals or
+  into another folder (subfolders are kept). Tags and cover art are copied, 24-bit audio stays 24-bit
+  for lossless formats, and your original files are never changed. Uses the same encoder settings as
+  ripping
+
 ## 1.12.0
 - **Retry failed** button: when tracks fail, rip just those again. Their new files replace the old
   ones, and the log, cue sheet, playlist and album ReplayGain are redone for the whole album. Also
