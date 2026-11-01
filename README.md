@@ -1,5 +1,9 @@
 # Spindle
 
+> **Made with Claude.** The code in this project was written by [Claude](https://claude.ai), Anthropic's
+> AI assistant, through many rounds of my requests, testing and feedback on real discs. I directed the
+> design and tested it; I don't claim credit for writing the code.
+
 An all-in-one, EAC-style secure CD ripper for Linux. Put a disc in, and Spindle reads it,
 looks it up, finds the cover, rips it securely, verifies it against AccurateRip, encodes it to as
 many formats as you like, tags everything and writes a log — in one window. It also plays CDs,
@@ -8,9 +12,12 @@ and its **Tag Files** tab fixes tags, artwork and file names for music you alrea
 ## Install
 
 ```sh
-tar xzf spindle-1.0.0.tar.gz && cd spindle
+git clone https://github.com/OWNER/spindle.git
+cd spindle
 ./install.sh
 ```
+
+To update later: `git pull && ./install.sh` (your settings, offsets and plugins are kept).
 
 The installer uses your package manager (apt, dnf, pacman or zypper) to install `cdparanoia` and the
 encoders, creates a private Python environment with PySide6 and mutagen, and adds **Spindle** to your
@@ -70,6 +77,13 @@ automatically when you rip. A mini Winamp-style spectrum analyser dances along n
 4. **Save Album** writes the tags and cover. Spindle only replaces the fields it manages, so
    ReplayGain, lyrics, ratings and other apps' tags are kept. Tick *Rename files* (and optionally
    *move them into my music folder*) to apply your naming template too — you're shown a preview first.
+
+### Cover art only
+
+To just add artwork without changing any tags: pick a cover for an album (click the cover box, or
+right-click it to load a file or use an image already in the folder) and press **Save Cover Only**.
+**Add Covers to All…** in the toolbar does every album in the list at once, optionally skipping albums
+that already have artwork. Right-click any cover and choose **Edit / crop…** to crop, rotate or resize it.
 
 ### Renaming files in bulk
 
@@ -145,6 +159,10 @@ python3 tests/test_tagfiles.py    # Tag Files matching, saving and batch rename
 Python 3.9+, PySide6, mutagen, numpy (installed by `install.sh`); `cdparanoia` (or libcdio's
 `cd-paranoia`); `flac`, `lame`, `opus-tools`, `vorbis-tools`, `wavpack` and/or `ffmpeg` for encoding and
 ReplayGain. Pillow is optional (shrinks the embedded copy of large cover images).
+
+## License
+
+Spindle is free software, released under the [GNU General Public License v3.0](LICENSE).
 
 ## Not (yet) supported
 

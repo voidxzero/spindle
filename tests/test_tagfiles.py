@@ -111,7 +111,29 @@ def test_batch_rename():
     print("ok batch rename")
 
 
+def test_cover_only():
+    tmp, d, paths = make_files()
+    cfg = Config(path=os.path.join(tmp, "c.json"))
+    cfg["coverart"]["embed_max_px"] = 0
+    for i, p in enumerate(paths):
+        tagger.write(p, {"TITLE": f"Keep {i}", "ARTIST": "Keep Artist", "REPLAYGAIN_TRACK_GAIN": "-2.00 dB"})
+    png = b"\x89PNG\r\n\x1a\n" + b"\0\0\0\rIHDR" + (600).to_bytes(4, "big") * 2 + b"\x08\x02\0\0\0" + b"\0" * 40
+    fa = tagfiles.group(tagfiles.scan([d]))[0]
+    n = tagfiles.embed_cover_only(cfg, fa, png)
+    assert n == 3
+    for i, p in enumerate(sorted(f.path for f in fa.files)):
+        t, _ = tagger.read(p)
+        assert t["title"].startswith("Keep") and t["artist"] == "Keep Artist", t
+        assert tagger.read_cover(p) == png, p
+    assert os.path.exists(os.path.join(d, "cover.png"))
+    assert tagfiles.folder_image(fa) == png
+    from mutagen.flac import FLAC
+    assert FLAC([p for p in paths if p.endswith(".flac")][0])["REPLAYGAIN_TRACK_GAIN"] == ["-2.00 dB"]
+    print("ok cover only (tags untouched)")
+
+
 if __name__ == "__main__":
     test_identify_and_save()
     test_preserve_cover()
     test_batch_rename()
+    test_cover_only()

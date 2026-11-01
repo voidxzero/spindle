@@ -8,13 +8,13 @@ from PySide6.QtCore import QPointF, QSize, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QFont, QIcon, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (QAbstractItemView, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
                                QFileDialog, QFrame, QGridLayout, QHBoxLayout, QHeaderView, QLabel,
-                               QLineEdit, QListWidget, QListWidgetItem, QMessageBox, QPushButton,
+                               QLineEdit, QListWidget, QListWidgetItem, QMenu, QMessageBox, QPushButton,
                                QRadioButton, QSpinBox, QSplitter, QStackedWidget, QTableWidget,
                                QTableWidgetItem, QVBoxLayout, QWidget)
 
-from .. import acoustid, naming, tagfiles, tagger
+from .. import acoustid, coverart, naming, tagfiles, tagger
 from ..metadata import musicbrainz as mb
-from ..metadata.base import AlbumMeta, TrackMeta
+from ..metadata.base import AlbumMeta, CoverCandidate, TrackMeta
 from .dialogs import CoverDialog, ReleaseDialog
 from .widgets import CoverLabel, LoadingOverlay, Spinner, unify_heights
 from .workers import run_async
@@ -64,6 +64,8 @@ class TaggerPage(QWidget):
         bar.addSpacing(12)
         self.b_identify = btn("Identify Again", self.identify_selected, "Look the selected album up again")
         self.b_saveall = btn("Save All Matched", self.save_all, "Save every album marked Matched")
+        self.b_covers_all = btn("Add Covers to All…", self.covers_for_all,
+                                "Find and embed artwork for every album in the list - nothing but the cover changes")
         self.b_rename = btn("Rename Files…", self.rename_files,
                             "Batch-rename files on disk: from their tags, or with find & replace")
         bar.addSpacing(12)
@@ -119,6 +121,8 @@ class TaggerPage(QWidget):
         g.setVerticalSpacing(8)
         self.cover = CoverLabel(150)
         self.cover.clicked.connect(self.choose_cover)
+        self.cover.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.cover.customContextMenuRequested.connect(self._cover_menu)
         g.addWidget(self.cover, 0, 0, 6, 1, Qt.AlignTop)
 
         def lab(t):
@@ -205,6 +209,11 @@ class TaggerPage(QWidget):
         foot.addWidget(self.rename)
         foot.addWidget(self.organize)
         foot.addStretch(1)
+        self.b_cover_only = QPushButton("Save Cover Only")
+        self.b_cover_only.setToolTip("Embed the chosen cover in every file of this album without changing any "
+                                     "other tag (and save it as cover.jpg if that's turned on)")
+        self.b_cover_only.clicked.connect(self.save_cover_only)
+        foot.addWidget(self.b_cover_only)
         self.b_revert = QPushButton("Revert")
         self.b_revert.setToolTip("Throw away your edits and go back to the matched release")
         self.b_revert.clicked.connect(self.revert)
@@ -439,6 +448,129 @@ class TaggerPage(QWidget):
             fa.cover = dlg.result_cover
             self._show_cover(fa)
 
+    def _cover_menu(self, pos):
+        fa = self.current
+        if not fa:
+            return
+        data = fa.cover.data if fa.cover and fa.cover.data else fa.existing_cover
+        m = QMenu(self)
+        m.addAction("Find cover art…", self.choose_cover)
+        a = m.addAction("Edit / crop…", self.edit_cover)
+        a.setEnabled(bool(data))
+        m.addAction("Load from file…", self._cover_from_file)
+        folder = m.addAction("Use image from the album folder", self._cover_from_folder)
+        folder.setEnabled(tagfiles.folder_image(fa) is not None)
+        m.exec(self.cover.mapToGlobal(pos))
+
+    def edit_cover(self):
+        fa = self.current
+        if not fa:
+            return
+        data = fa.cover.data if fa.cover and fa.cover.data else fa.existing_cover
+        if not data:
+            QMessageBox.information(self, "Cover art", "This album has no cover yet - find one first.")
+            return
+        from .cover_editor import edit_cover
+        edited = edit_cover(self, data, self.cfg)
+        if edited:
+            fa.cover = edited
+            self._show_cover(fa)
+            self._update_verdict()
+
+    def _cover_from_file(self):
+        fa = self.current
+        if not fa:
+            return
+        path, _ = QFileDialog.getOpenFileName(self, "Choose cover image", fa.folder, "Images (*.jpg *.jpeg *.png)")
+        if path:
+            try:
+                fa.cover = coverart.from_file(path)
+            except (OSError, ValueError) as e:
+                QMessageBox.warning(self, "Cover art", str(e))
+                return
+            self._show_cover(fa)
+
+    def _cover_from_folder(self):
+        fa = self.current
+        data = tagfiles.folder_image(fa) if fa else None
+        if data:
+            w, h = coverart.image_size(data)
+            fa.cover = CoverCandidate(url="", source="Album folder", data=data, width=w, height=h)
+            self._show_cover(fa)
+
+    def save_cover_only(self):
+        fa = self.current
+        if not fa:
+            return
+        if fa.cover is None or not fa.cover.data:
+            QMessageBox.information(self, "Save cover only",
+                                    "Pick a new cover first: click the cover box (or right-click it for more options).")
+            return
+        data = fa.cover.data
+        self._busy("Embedding cover art…")
+
+        def done(n):
+            self._idle(f"Cover embedded in {n} file(s)")
+            fa.message = "Cover saved"
+            self._refresh_list()
+            self._show_cover(fa)
+            self.logged.emit(f"Tag Files: embedded cover in {n} file(s) of {fa.title}")
+        run_async(tagfiles.embed_cover_only, self.cfg, fa, data, self.logged.emit, on_done=done,
+                  on_error=lambda m: (self._idle(), QMessageBox.warning(self, "Save cover only", m)))
+
+    def covers_for_all(self):
+        if not self.albums:
+            QMessageBox.information(self, "Add covers", "Add a folder of music first.")
+            return
+        self._collect()
+        missing_only = QMessageBox.question(
+            self, "Add covers to all albums",
+            "Only add covers to albums that don't have one yet?\n\n"
+            "Yes = skip albums that already have embedded artwork\nNo = replace artwork everywhere\n\n"
+            "Albums where you already picked a cover use that one. Only the artwork changes.",
+            QMessageBox.Yes | QMessageBox.No | QMessageBox.Cancel)
+        if missing_only == QMessageBox.Cancel:
+            return
+        skip_existing = missing_only == QMessageBox.Yes
+        albums = list(self.albums)
+        self._busy(f"Adding covers to {len(albums)} album(s)…")
+
+        def work():
+            done, skipped, notfound = 0, 0, []
+            for fa in albums:
+                if fa.cover is None and skip_existing:
+                    if fa.existing_cover is None and fa.files:
+                        fa.existing_cover = tagger.read_cover(fa.files[0].path)
+                    if fa.existing_cover:
+                        skipped += 1
+                        continue
+                data = fa.cover.data if fa.cover and fa.cover.data else None
+                if data is None:
+                    data = tagfiles.folder_image(fa)
+                if data is None:
+                    album = fa.edited or AlbumMeta(title=fa.guess_album, artist=fa.guess_artist
+                                                   or tagfiles._folder_artist(fa.folder))
+                    c = coverart.auto_pick(self.cfg, album, self.logged.emit)
+                    data = c.data if c else None
+                if data is None:
+                    notfound.append(fa.title)
+                    continue
+                tagfiles.embed_cover_only(self.cfg, fa, data, self.logged.emit)
+                fa.message = "Cover saved"
+                done += 1
+            return done, skipped, notfound
+
+        def finished(res):
+            done, skipped, notfound = res
+            self._idle(f"Covers added to {done} album(s)" + (f", {skipped} already had one" if skipped else ""))
+            self._refresh_list()
+            if self.current:
+                self._show_cover(self.current)
+            if notfound:
+                QMessageBox.information(self, "Add covers", "No cover found for:\n\n" + "\n".join(notfound[:20])
+                                        + "\n\nPick one by hand: select the album and click its cover box.")
+        run_async(work, on_done=finished, on_error=lambda m: (self._idle(), QMessageBox.warning(self, "Add covers", m)))
+
     # ============================================================== display
     def _status_icon(self, status: str) -> QIcon:
         color = {"matched": "good", "saved": "good", "check": "warn", "nomatch": "bad", "error": "bad"}.get(status)
@@ -519,7 +651,7 @@ class TaggerPage(QWidget):
         else:
             self._show_cover(fa)
         busy = fa.status in ("new", "working")
-        for wdg in (self.b_save, self.b_revert, self.b_fp):
+        for wdg in (self.b_save, self.b_revert, self.b_fp, self.b_cover_only):
             wdg.setEnabled(not busy)
         if busy:
             self.detail_overlay.show_message("Looking this album up on MusicBrainz…"

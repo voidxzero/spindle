@@ -203,6 +203,8 @@ class MainWindow(QMainWindow):
         g.setVerticalSpacing(8)
         self.cover_lbl = CoverLabel(176)
         self.cover_lbl.clicked.connect(self.choose_cover)
+        self.cover_lbl.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.cover_lbl.customContextMenuRequested.connect(self._cover_menu)
         g.addWidget(self.cover_lbl, 0, 0, 6, 1, Qt.AlignTop | Qt.AlignLeft)
 
         top = QHBoxLayout()
@@ -578,6 +580,7 @@ class MainWindow(QMainWindow):
         m = mb.addMenu("&Cover")
         act(m, "Choose cover art…", self.choose_cover, "F7")
         act(m, "Load from file…", self._cover_from_file)
+        act(m, "Edit / crop cover…", self.edit_cover)
         act(m, "Remove cover", self._remove_cover)
         m = mb.addMenu("&Action")
         act(m, "Rip selected tracks", lambda: self.rip(False), "F8")
@@ -1099,6 +1102,27 @@ class MainWindow(QMainWindow):
                 self._set_cover(coverart.from_file(path))
             except (OSError, ValueError) as e:
                 QMessageBox.warning(self, "Cover art", str(e))
+
+    def edit_cover(self):
+        if not self.cover or not self.cover.data:
+            QMessageBox.information(self, "Cover art", "Choose a cover first.")
+            return
+        from .cover_editor import edit_cover
+        edited = edit_cover(self, self.cover.data, self.cfg)
+        if edited:
+            self._set_cover(edited)
+
+    def _cover_menu(self, pos):
+        if not self.toc or getattr(self, "_edits_locked", False):
+            return
+        m = QMenu(self)
+        m.addAction("Find cover art…", self.choose_cover)
+        a = m.addAction("Edit / crop…", self.edit_cover)
+        a.setEnabled(bool(self.cover and self.cover.data))
+        m.addAction("Load from file…", self._cover_from_file)
+        r = m.addAction("Remove", self._remove_cover)
+        r.setEnabled(self.cover is not None)
+        m.exec(self.cover_lbl.mapToGlobal(pos))
 
     def _remove_cover(self):
         self.cover = None

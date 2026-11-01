@@ -372,3 +372,65 @@ def read_cover(path: str) -> bytes | None:
                 val = tags[k].value
                 return val.split(b"\0", 1)[1] if b"\0" in val else val
     return None
+
+
+def set_cover(path: str, cover: bytes) -> None:
+    """Replace only the embedded front cover; every other tag is left exactly as it was."""
+    ext = os.path.splitext(path)[1].lower()
+    if ext == ".flac":
+        from mutagen.flac import FLAC
+        f = FLAC(path)
+        f.clear_pictures()
+        f.add_picture(_picture(cover))
+        f.save()
+    elif ext in (".ogg", ".opus", ".oga"):
+        from mutagen import File
+        f = File(path)
+        if f.tags is None:
+            f.add_tags()
+        for k in list(f.tags.keys()):
+            if k.upper() in ("METADATA_BLOCK_PICTURE", "COVERART", "COVERARTMIME"):
+                del f.tags[k]
+        f["METADATA_BLOCK_PICTURE"] = base64.b64encode(_picture(cover).write()).decode("ascii")
+        f.save()
+    elif ext in (".mp3", ".wav"):
+        from mutagen import id3
+        if ext == ".mp3":
+            try:
+                t = id3.ID3(path)
+            except id3.ID3NoHeaderError:
+                t = id3.ID3()
+        else:
+            from mutagen.wave import WAVE
+            w = WAVE(path)
+            if w.tags is None:
+                w.add_tags()
+            t = w.tags
+        t.delall("APIC")
+        t.add(id3.APIC(encoding=3, mime=mime_of(cover), type=3, desc="Front Cover", data=cover))
+        if ext == ".mp3":
+            t.save(path, v2_version=t.version[1] if t.version and t.version[1] in (3, 4) else 4)
+        else:
+            w.save()
+    elif ext in (".m4a", ".mp4", ".m4b"):
+        from mutagen.mp4 import MP4, MP4Cover
+        f = MP4(path)
+        if f.tags is None:
+            f.add_tags()
+        fmt = MP4Cover.FORMAT_PNG if mime_of(cover) == "image/png" else MP4Cover.FORMAT_JPEG
+        f.tags["covr"] = [MP4Cover(cover, imageformat=fmt)]
+        f.save()
+    elif ext == ".wv":
+        from mutagen.apev2 import APEv2, APENoHeaderError, APEValue, BINARY
+        try:
+            t = APEv2(path)
+        except APENoHeaderError:
+            t = APEv2()
+        for k in list(t.keys()):
+            if k.lower().startswith("cover art"):
+                del t[k]
+        e = "png" if mime_of(cover) == "image/png" else "jpg"
+        t["Cover Art (Front)"] = APEValue(f"cover.{e}".encode() + b"\0" + cover, BINARY)
+        t.save(path)
+    else:
+        raise ValueError(f"Don't know how to add artwork to {ext} files")

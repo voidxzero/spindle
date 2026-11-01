@@ -17,7 +17,7 @@ from ..config import DATA_DIR
 from ..disc import DriveInfo, list_drives
 from ..metadata.base import AlbumMeta, CoverCandidate, TrackMeta
 from .themes import theme_names
-from .widgets import ProviderList
+from .widgets import LoadingOverlay, ProviderList, Spinner
 from .workers import run_async
 
 
@@ -47,8 +47,11 @@ class ReleaseDialog(QDialog):
         self.search_btn = QPushButton("Search")
         self.search_btn.clicked.connect(self._search)
         self.album.returnPressed.connect(self._search)
+        row.setSpacing(8)
         row.addWidget(self.artist, 2)
         row.addWidget(self.album, 3)
+        self.spinner = Spinner(16)
+        row.addWidget(self.spinner)
         row.addWidget(self.search_btn)
         lay.addLayout(row)
         self.table = QTableWidget(0, 7)
@@ -69,6 +72,7 @@ class ReleaseDialog(QDialog):
         self.table.verticalHeader().setDefaultSectionSize(28)
         self.table.doubleClicked.connect(self.accept)
         lay.addWidget(self.table, 1)
+        self.overlay = LoadingOverlay(self.table)
         self.tracks = QLabel()
         self.tracks.setObjectName("dim")
         self.tracks.setWordWrap(True)
@@ -103,8 +107,12 @@ class ReleaseDialog(QDialog):
     def _search(self):
         self.search_btn.setEnabled(False)
         self.search_btn.setText("Searching…")
+        self.spinner.start()
+        self.overlay.show_message("Searching MusicBrainz…")
 
         def done(res):
+            self.spinner.stop()
+            self.overlay.finish()
             self.search_btn.setEnabled(True)
             self.search_btn.setText("Search")
             self.candidates = res + [c for c in self.candidates if c not in res]
@@ -113,6 +121,8 @@ class ReleaseDialog(QDialog):
                 QMessageBox.information(self, "Search", "Nothing found with that many tracks.")
 
         def fail(msg):
+            self.spinner.stop()
+            self.overlay.finish()
             self.search_btn.setEnabled(True)
             self.search_btn.setText("Search")
             QMessageBox.warning(self, "Search failed", msg)
@@ -140,6 +150,7 @@ class CoverDialog(QDialog):
         go.clicked.connect(self._search)
         local = QPushButton("From file…")
         local.clicked.connect(self._from_file)
+        row.setSpacing(8)
         row.addWidget(QLabel("Artist"))
         row.addWidget(self.artist, 2)
         row.addWidget(QLabel("Album"))
@@ -147,9 +158,15 @@ class CoverDialog(QDialog):
         row.addWidget(go)
         row.addWidget(local)
         lay.addLayout(row)
+        srow = QHBoxLayout()
+        srow.setSpacing(8)
+        self.spinner = Spinner(16)
+        srow.addWidget(self.spinner)
         self.status = QLabel("Searching…")
         self.status.setObjectName("dim")
-        lay.addWidget(self.status)
+        srow.addWidget(self.status, 1)
+        lay.addLayout(srow)
+        self._pending = 0
         self.grid = QListWidget()
         self.grid.setViewMode(QListWidget.IconMode)
         self.grid.setIconSize(QSize(200, 200))
@@ -159,7 +176,11 @@ class CoverDialog(QDialog):
         self.grid.setWordWrap(True)
         self.grid.itemDoubleClicked.connect(lambda _: self.accept())
         lay.addWidget(self.grid, 1)
+        self.overlay = LoadingOverlay(self.grid)
         bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        self.b_edit = bb.addButton("Edit / Crop…", QDialogButtonBox.ActionRole)
+        self.b_edit.setToolTip("Crop, rotate or resize the selected image")
+        self.b_edit.clicked.connect(self._edit)
         bb.button(QDialogButtonBox.Ok).setText("Use selected")
         bb.button(QDialogButtonBox.Ok).setObjectName("primary")
         bb.accepted.connect(self.accept)
@@ -173,16 +194,35 @@ class CoverDialog(QDialog):
         q.artist, q.title = self.artist.text().strip(), self.title.text().strip()
         self.grid.clear()
         self.cands = []
+        self._pending = 0
         self.status.setText("Searching cover art sources…")
-        run_async(coverart.find_all, self.cfg, q, on_done=self._got,
-                  on_error=lambda m: self.status.setText(f"Search failed: {m}"))
+        self.spinner.start()
+        self.overlay.show_message("Searching Cover Art Archive, iTunes, Deezer…")
+
+        def fail(m):
+            self.overlay.finish()
+            self.spinner.stop()
+            self.status.setText(f"Search failed: {m}")
+        run_async(coverart.find_all, self.cfg, q, on_done=self._got, on_error=fail)
 
     def _got(self, cands: list[CoverCandidate]):
+        self.overlay.finish()
         cands = sorted(cands, key=lambda c: -c.score)
-        self.status.setText(f"{len(cands)} candidate(s). Double-click to choose." if cands
-                            else "Nothing found. Try editing the search or load a file.")
+        if not cands:
+            self.spinner.stop()
+            self.status.setText("Nothing found. Try editing the search or load a file.")
         for c in cands:
             self._add(c)
+        self._update_status()
+
+    def _update_status(self):
+        n = len(self.cands)
+        if self._pending:
+            self.spinner.start()
+            self.status.setText(f"Loading images… {n - self._pending} of {n} ready")
+        elif n:
+            self.spinner.stop()
+            self.status.setText(f"{n} image(s). Double-click to use one, or Edit / Crop… to adjust it.")
 
     def _add(self, c: CoverCandidate):
         self.cands.append(c)
@@ -194,11 +234,40 @@ class CoverDialog(QDialog):
             self._show_thumb(it, c, c.data)
             return
 
+        it.setIcon(QIcon(self._placeholder()))
+        self._pending += 1
+
         def fetch():
             # full image so we can show true dimensions; thumbnails are small anyway
             return coverart.download(c)
-        run_async(fetch, on_done=lambda data, it=it, c=c: self._show_thumb(it, c, data),
-                  on_error=lambda m, it=it, c=c: it.setText(f"{c.source}\n{c.description}\n(failed)"))
+
+        def done(data, it=it, c=c):
+            self._pending -= 1
+            self._show_thumb(it, c, data)
+            self._update_status()
+
+        def fail(m, it=it, c=c):
+            self._pending -= 1
+            it.setText(f"{c.source}\n{c.description}\n(failed)")
+            self._update_status()
+        run_async(fetch, on_done=done, on_error=fail)
+
+    def _placeholder(self) -> QPixmap:
+        """Grey tile shown while an image downloads."""
+        from PySide6.QtGui import QColor, QPainter
+        pm = QPixmap(200, 200)
+        pm.fill(Qt.transparent)
+        p = QPainter(pm)
+        p.setRenderHint(QPainter.Antialiasing)
+        col = QColor(self.palette().mid().color())
+        col.setAlpha(90)
+        p.setBrush(col)
+        p.setPen(Qt.NoPen)
+        p.drawRoundedRect(10, 10, 180, 180, 10, 10)
+        p.setPen(self.palette().text().color())
+        p.drawText(pm.rect(), Qt.AlignCenter, "Loading…")
+        p.end()
+        return pm
 
     def _show_thumb(self, it, c, data):
         pm = QPixmap()
@@ -206,6 +275,22 @@ class CoverDialog(QDialog):
             it.setIcon(QIcon(pm.scaled(200, 200, Qt.KeepAspectRatio, Qt.SmoothTransformation)))
         size = f"{c.width}×{c.height}" if c.width else "?"
         it.setText(f"{c.source} · {size}\n{c.description}")
+
+    def _edit(self):
+        it = self.grid.currentItem()
+        if it is None:
+            QMessageBox.information(self, "Cover art", "Select an image first.")
+            return
+        c = self.cands[it.data(Qt.UserRole)]
+        if c.data is None:
+            QMessageBox.information(self, "Cover art", "That image is still downloading (or failed).")
+            return
+        from .cover_editor import edit_cover
+        edited = edit_cover(self, c.data, self.cfg)
+        if edited:
+            self._add(edited)
+            self.grid.setCurrentRow(self.grid.count() - 1)
+            self._update_status()
 
     def _from_file(self):
         path, _ = QFileDialog.getOpenFileName(self, "Choose cover image", os.path.expanduser("~"),
@@ -274,8 +359,11 @@ class SettingsDialog(QDialog):
         self.offset.setSuffix(" samples")
         detect = QPushButton("Look up in AccurateRip")
         detect.clicked.connect(self._detect_offset)
+        self.b_detect = detect
+        self.detect_spin = Spinner(16)
         off_row.addWidget(self.offset)
         off_row.addWidget(detect)
+        off_row.addWidget(self.detect_spin)
         off_row.addStretch(1)
         f.addRow("Read offset correction", off_row)
         hint = QLabel("Every drive model reads audio a few samples early or late. Correcting for it is what "
@@ -316,7 +404,17 @@ class SettingsDialog(QDialog):
             QMessageBox.information(self, "Offset", "Couldn't identify the drive model.")
             return
 
+        self.b_detect.setEnabled(False)
+        self.b_detect.setText("Looking up…")
+        self.detect_spin.start()
+
+        def idle():
+            self.b_detect.setEnabled(True)
+            self.b_detect.setText("Look up in AccurateRip")
+            self.detect_spin.stop()
+
         def done(val):
+            idle()
             if val is None:
                 QMessageBox.information(self, "Offset", f"{drive.accuraterip_name} isn't in the AccurateRip "
                                         "offset list. Search for it at accuraterip.com/driveoffsets.htm.")
@@ -324,7 +422,7 @@ class SettingsDialog(QDialog):
                 self.offset.setValue(val)
                 QMessageBox.information(self, "Offset", f"{drive.accuraterip_name}: {val:+d} samples")
         run_async(accuraterip.detect_offset, drive, on_done=done,
-                  on_error=lambda m: QMessageBox.warning(self, "Offset", f"Lookup failed: {m}"))
+                  on_error=lambda m: (idle(), QMessageBox.warning(self, "Offset", f"Lookup failed: {m}")))
 
     # --- Output ------------------------------------------------------------
     def _output_tab(self):

@@ -445,3 +445,45 @@ def apply_renames(plans: list[RenamePlan]) -> int:
         p.file.path = p.new_path
         done += 1
     return done
+
+
+# --------------------------------------------------------------- cover only
+def embed_cover_only(cfg, fa: FileAlbum, data: bytes, log=lambda s: None) -> int:
+    """Embed ``data`` as the front cover of every file in the album without changing any other
+    tag, and (if enabled) save it next to the files as cover.jpg. Returns files updated."""
+    embed = coverart.for_embedding(data, int(cfg["coverart"].get("embed_max_px", 0)))
+    done = 0
+    for f in fa.files:
+        try:
+            tagger.set_cover(f.path, embed)
+            done += 1
+        except Exception as e:  # noqa: BLE001
+            log(f"Cover: {f.name}: {e}")
+    if cfg["coverart"].get("save_file", True):
+        name = cfg["coverart"].get("filename") or "cover.jpg"
+        if coverart.mime_of(data) == "image/png":
+            name = os.path.splitext(name)[0] + ".png"
+        for d in {os.path.dirname(f.path) for f in fa.files}:
+            Path(d, name).write_bytes(data)
+    fa.existing_cover = embed
+    fa.cover = None
+    return done
+
+
+def folder_image(fa: FileAlbum) -> bytes | None:
+    """An image already sitting in the album folder (cover.jpg, folder.png, front.jpg, …)."""
+    names = ("cover", "folder", "front", "album", "albumart")
+    try:
+        files = os.listdir(fa.folder)
+    except OSError:
+        return None
+    pics = [n for n in files if os.path.splitext(n)[1].lower() in (".jpg", ".jpeg", ".png")]
+    pics.sort(key=lambda n: (os.path.splitext(n)[0].lower() not in names, n.lower()))
+    for n in pics:
+        try:
+            data = Path(fa.folder, n).read_bytes()
+        except OSError:
+            continue
+        if coverart.image_size(data)[0]:
+            return data
+    return None

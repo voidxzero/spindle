@@ -201,15 +201,16 @@ QToolButton::menu-indicator { image: url("%(down)s"); subcontrol-position: right
 QToolButton#formatButton { padding-right: 24px; }
 
 QCheckBox, QRadioButton { spacing: 6px; }
-QCheckBox::indicator, QTableView::indicator, QListView::indicator {
-    width: 15px; height: 15px; background: transparent; border: none; image: url("%(cb_off)s"); }
-QCheckBox::indicator:hover, QTableView::indicator:hover, QListView::indicator:hover { image: url("%(cb_off_hover)s"); }
-QCheckBox::indicator:checked, QTableView::indicator:checked, QListView::indicator:checked { image: url("%(cb_on)s"); }
-QCheckBox::indicator:disabled, QTableView::indicator:disabled, QListView::indicator:disabled { image: url("%(cb_off_dis)s"); }
-QCheckBox::indicator:checked:disabled, QTableView::indicator:checked:disabled, QListView::indicator:checked:disabled {
-    image: url("%(cb_on_dis)s"); }
-QRadioButton::indicator { width: 15px; height: 15px; background: transparent; border: none; image: url("%(rb_off)s"); }
-QRadioButton::indicator:hover { image: url("%(rb_off_hover)s"); }
+QCheckBox::indicator, QTableView::indicator, QTableWidget::indicator, QListView::indicator, QListWidget::indicator, QTreeView::indicator {
+    width: 15px; height: 15px; background: transparent; border: none; }
+QCheckBox::indicator:unchecked, QTableView::indicator:unchecked, QTableWidget::indicator:unchecked, QListView::indicator:unchecked, QListWidget::indicator:unchecked, QTreeView::indicator:unchecked { image: url("%(cb_off)s"); }
+QCheckBox::indicator:unchecked:hover, QTableView::indicator:unchecked:hover, QTableWidget::indicator:unchecked:hover, QListView::indicator:unchecked:hover, QListWidget::indicator:unchecked:hover, QTreeView::indicator:unchecked:hover { image: url("%(cb_off_hover)s"); }
+QCheckBox::indicator:unchecked:disabled, QTableView::indicator:unchecked:disabled, QTableWidget::indicator:unchecked:disabled, QListView::indicator:unchecked:disabled, QListWidget::indicator:unchecked:disabled, QTreeView::indicator:unchecked:disabled { image: url("%(cb_off_dis)s"); }
+QCheckBox::indicator:checked, QTableView::indicator:checked, QTableWidget::indicator:checked, QListView::indicator:checked, QListWidget::indicator:checked, QTreeView::indicator:checked { image: url("%(cb_on)s"); }
+QCheckBox::indicator:checked:disabled, QTableView::indicator:checked:disabled, QTableWidget::indicator:checked:disabled, QListView::indicator:checked:disabled, QListWidget::indicator:checked:disabled, QTreeView::indicator:checked:disabled { image: url("%(cb_on_dis)s"); }
+QRadioButton::indicator { width: 15px; height: 15px; background: transparent; border: none; }
+QRadioButton::indicator:unchecked { image: url("%(rb_off)s"); }
+QRadioButton::indicator:unchecked:hover { image: url("%(rb_off_hover)s"); }
 QRadioButton::indicator:checked { image: url("%(rb_on)s"); }
 QSlider::groove:horizontal { height: 4px; background: %(inset)s; border: 1px solid %(border)s; border-radius: 2px; }
 QSlider::sub-page:horizontal { background: %(accent)s; border-radius: 2px; }
