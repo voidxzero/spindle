@@ -492,9 +492,15 @@ class MainWindow(QMainWindow):
         a_play.setEnabled(self._can_play())
         a_rip = m.addAction(f"Rip only track {n}")
         a_rip.setEnabled(not self.busy)
+        a_retry = None
+        if n in self._failed_tracks():
+            a_retry = m.addAction(f"Retry track {n}")
+            a_retry.setEnabled(not self.busy)
         chosen = m.exec(self.table.viewport().mapToGlobal(pos))
         if chosen is a_play:
             self.player.play(n)
+        elif chosen is not None and chosen is a_retry:
+            self.retry_failed([n])
         elif chosen is a_rip:
             for r in range(self.table.rowCount()):
                 self.table.item(r, C_CHECK).setCheckState(Qt.Checked if r == row else Qt.Unchecked)
@@ -583,9 +589,15 @@ class MainWindow(QMainWindow):
         self.b_open = QPushButton("Open folder")
         self.b_open.setToolTip("Open the folder of the current or last rip (or your music folder)")
         self.b_open.clicked.connect(self._open_output)
+        self.b_retry = QPushButton("Retry failed")
+        self.b_retry.setToolTip("Rip the failed tracks again. Their new files replace the old ones, and the "
+                                "log, cue sheet and playlist are rewritten for the whole album.")
+        self.b_retry.clicked.connect(lambda: self.retry_failed())
+        self.b_retry.hide()
         lay.addWidget(self.prog_label)
         lay.addWidget(self.prog, 1)
         lay.addWidget(self.b_cancel)
+        lay.addWidget(self.b_retry)
         lay.addWidget(self.b_open)
         return f
 
@@ -730,6 +742,8 @@ class MainWindow(QMainWindow):
             b.setEnabled(not busy)
         self.b_cancel.setEnabled(ripping)
         self._lock_edits(ripping)
+        if hasattr(self, "b_retry"):
+            self._update_retry_button()
         if hasattr(self, "pl_play"):
             self._update_player_buttons()
         if not busy and self.toc is None:
@@ -1248,13 +1262,14 @@ class MainWindow(QMainWindow):
             anyoff = any(self.table.item(r, C_CHECK).checkState() != Qt.Checked for r in range(self.table.rowCount()))
             self._check_all(anyoff)
 
-    def rip(self, image: bool):
+    def rip(self, image: bool, tracks: list[int] | None = None, retry_of: RipJob | None = None):
         if self._counting:
             self._stop_countdown()
         if not self.toc or self.busy or not self.drive:
             return
-        tracks = [self._num(r) for r in range(self.table.rowCount())
-                  if self.table.item(r, C_CHECK).checkState() == Qt.Checked]
+        if tracks is None:
+            tracks = [self._num(r) for r in range(self.table.rowCount())
+                      if self.table.item(r, C_CHECK).checkState() == Qt.Checked]
         if not tracks and not image:
             QMessageBox.information(self, "Rip", "Tick at least one track.")
             return
@@ -1291,7 +1306,7 @@ class MainWindow(QMainWindow):
         self.rep.progress.connect(self._on_track_progress)
         self.rep.overall_progress.connect(self._on_overall)
         self.rep.finished_track.connect(self._on_track_done)
-        self.job = RipJob(cfg, self.drive, self.toc, album, tracks, self.cover, self.rep)
+        self.job = RipJob(cfg, self.drive, self.toc, album, tracks, self.cover, self.rep, retry_of=retry_of)
         self._set_busy(True, ripping=True)
         self.prog.setValue(0)
         self.prog_label.setText("Ripping…")
@@ -1367,6 +1382,30 @@ class MainWindow(QMainWindow):
         if "suspicious" in text:
             return "Suspicious"
         return text
+
+    # ---------------------------------------------------------------- retry
+    def _failed_tracks(self) -> list[int]:
+        """Tracks of the last rip of the disc in the drive that didn't come out right."""
+        job = self.job
+        if not job or self.toc is None or job.toc.musicbrainz_id() != self.toc.musicbrainz_id():
+            return []
+        return [n for n in job.track_order if n in job.results and not job.results[n].good]
+
+    def _update_retry_button(self):
+        failed = [] if self.busy else self._failed_tracks()
+        self.b_retry.setText(f"Retry failed ({len(failed)})" if len(failed) > 1 else "Retry failed")
+        self.b_retry.setVisible(bool(failed))
+
+    def retry_failed(self, tracks: list[int] | None = None):
+        failed = self._failed_tracks()
+        tracks = [n for n in (tracks or failed) if n in failed]
+        if not tracks or self.busy:
+            return
+        prev = self.job
+        image = prev.cfg["output"].get("mode") == "image"
+        self.log(("Retrying the disc image" if image else
+                  f"Retrying track{'s' if len(tracks) > 1 else ''} {', '.join(map(str, tracks))}") + "…")
+        self.rip(image, tracks=None if image else tracks, retry_of=prev)
 
     def _on_status(self, n, text):
         r = self._row_of(n)

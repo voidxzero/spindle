@@ -64,6 +64,10 @@ During a rip you can still open **Settings** (the drive, output and format setti
 greyed out until it finishes) and **Open folder** to watch the album being written. When the tray is
 open, the **Eject** button becomes **Close**.
 
+If any tracks fail, **Retry failed** (next to *Open folder*) rips just those again; right-click a failed
+track for *Retry track N*. The new files replace the bad ones and the log, cue sheet and playlist are
+rewritten for the whole album.
+
 ## Finish sound
 
 When a rip finishes, Spindle plays a short rising chime, or a lower two-note tone if any track had
@@ -172,7 +176,8 @@ Enable, disable and reorder sources in Settings ▸ Metadata / Cover art.
 
 ## Settings and files
 
-Settings: `~/.config/spindle/config.json`. Program: `~/.local/share/spindle/`. `./uninstall.sh`
+Settings: `~/.config/spindle/config.json`. Program: `~/.local/share/spindle/`. Temporary rip files:
+`~/.cache/spindle/work/` (so a music folder on a network share only receives finished files). `./uninstall.sh`
 removes the program and keeps your settings and plugins.
 
 ## Running the tests

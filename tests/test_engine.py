@@ -135,11 +135,6 @@ def test_image_mode():
     assert "INDEX 01 00:04:00" in text and "INDEX 01 00:09:25" in text, text
 
 
-if __name__ == "__main__":
-    for name, fn in list(globals().items()):
-        if name.startswith("test_"):
-            fn()
-            print("ok", name)
 
 
 def test_keydisc_offset():
@@ -171,3 +166,65 @@ def test_keydisc_offset():
     drive = SimulatedDrive(toc); drive.true_offset = 6
     res = accuraterip.detect_offset_keydisc(drive, toc, db2)
     assert res[0].offset == 6 and res[0].tracks_matched == 4 and res[1].offset == 36, res[:3]
+
+
+def _flaky_rip_setup():
+    tmp = tempfile.mkdtemp()
+    cache = tempfile.mkdtemp()
+    cfg = Config(path=os.path.join(tmp, "c.json"))
+    cfg["output"].update(directory=os.path.join(tmp, "out"), formats=["flac"])
+    cfg["coverart"]["auto_fetch"] = False
+    cfg["drive"]["retry_on_mismatch"] = 0          # copy + one test read: the flaky track fails
+    drive = SimulatedDrive(TOC.from_offsets([0, 300, 700], 1000), flaky_track=2)
+    album = AlbumMeta(title="Retry Album", artist="Retry Artist",
+                      tracks=[TrackMeta(i, f"Song {i}", "Retry Artist") for i in (1, 2, 3)])
+    return tmp, cache, cfg, drive, album
+
+
+def test_work_dir_is_local():
+    """Temporary WAVs go to ~/.cache/spindle/work, never into the (possibly network) output folder."""
+    import copy
+    tmp, cache, cfg, drive, album = _flaky_rip_setup()
+    seen = []
+    real = tempfile.mkdtemp
+    with mock.patch.dict(os.environ, {"XDG_CACHE_HOME": cache}), \
+         mock.patch("spindle.accuraterip.lookup", return_value=[]), \
+         mock.patch("spindle.tagger.write", lambda *a, **k: None), mock.patch("spindle.tagger.add", lambda *a, **k: None), \
+         mock.patch("spindle.pipeline.tempfile.mkdtemp", lambda **k: seen.append(k["dir"]) or real(**k)):
+        RipJob(copy.deepcopy(cfg), drive, drive.read_toc(), album, [1], None, Reporter()).run()
+    assert seen == [os.path.join(cache, "spindle", "work")], seen
+    assert os.listdir(seen[0]) == [], os.listdir(seen[0])          # cleaned up afterwards
+    assert not [f for f in os.listdir(cfg["output"]["directory"]) if f.startswith(".spindle-")]
+
+
+def test_retry_failed_track():
+    """Retrying a failed track replaces its file and rebuilds the album's log, cue and playlist."""
+    tmp, cache, cfg, drive, album = _flaky_rip_setup()
+    import copy
+    with mock.patch.dict(os.environ, {"XDG_CACHE_HOME": cache}), \
+         mock.patch("spindle.accuraterip.lookup", return_value=[]), \
+         mock.patch("spindle.tagger.write", lambda *a, **k: None), mock.patch("spindle.tagger.add", lambda *a, **k: None):
+        job = RipJob(copy.deepcopy(cfg), drive, drive.read_toc(), album, [1, 2, 3], None, Reporter())
+        assert not job.run()
+        assert [n for n in job.track_order if not job.results[n].good] == [2]
+        old_file = job.results[2].files[0]
+        drive.flaky_track = 0                           # the disc reads cleanly this time
+        retry = RipJob(copy.deepcopy(cfg), drive, drive.read_toc(), album, [2], None, Reporter(), retry_of=job)
+        assert retry.run()
+    assert retry.track_order == [1, 2, 3] and all(retry.results[n].good for n in (1, 2, 3))
+    assert retry.results[2].files == [old_file]         # replaced in place, no "(2)" copy
+    out = retry.output_dir
+    names = sorted(os.listdir(out))
+    assert not [n for n in names if "(2)" in n], names
+    assert len([n for n in names if n.endswith(".flac")]) == 3, names
+    log = open(retry.log_path).read()
+    assert "No errors occurred" in log and log.count("Track ") >= 3, log
+    m3u = open(os.path.join(out, [n for n in names if n.endswith(".m3u8")][0])).read()
+    assert m3u.count(".flac") == 3, m3u
+
+
+if __name__ == "__main__":
+    for name, fn in list(globals().items()):
+        if name.startswith("test_"):
+            fn()
+            print("ok", name)

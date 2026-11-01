@@ -6,6 +6,7 @@ import os
 import shutil
 import tempfile
 import threading
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -50,9 +51,15 @@ class TrackResult:
 
 class RipJob:
     def __init__(self, cfg, drive: Drive, toc: TOC, album: AlbumMeta, tracks: list[int],
-                 cover: CoverCandidate | None, reporter: Reporter | None = None):
+                 cover: CoverCandidate | None, reporter: Reporter | None = None,
+                 retry_of: "RipJob | None" = None):
         self.cfg, self.drive, self.toc, self.album = cfg, drive, toc, album
         self.track_order = [n for n in tracks if toc.track(n).audio]
+        # Retrying tracks of an earlier rip: their new files replace the old ones, and the log, cue
+        # sheet, playlist and album ReplayGain are rebuilt for the whole album, not just these tracks.
+        self.retry_of = retry_of
+        if retry_of is not None:
+            cfg["output"]["overwrite"] = True
         self.cover = cover
         self.rep = reporter or Reporter()
         self.cancel = threading.Event()
@@ -79,6 +86,26 @@ class RipJob:
         self._image_wav = ""
 
     # ------------------------------------------------------------------ helpers
+    def _work_root(self, out_root: str) -> str:
+        """Where the temporary WAVs go: local disk (~/.cache/spindle/work), so ripping and re-reading
+        never depend on a network share or USB drive staying responsive. Only the finished files are
+        written to the output folder. Falls back to the output folder if local disk is short of space."""
+        sectors = sum(self.toc.track(n).sectors for n in self.track_order)
+        passes = 2 + int(self.cfg["drive"].get("retry_on_mismatch", 2))     # copies that can coexist
+        need = sectors * BYTES_PER_FRAME * passes + 200 * 1024 * 1024
+        root = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "spindle" / "work"
+        try:
+            root.mkdir(parents=True, exist_ok=True)
+            for old in root.glob(".spindle-*"):             # left behind by a crash or power cut
+                if time.time() - old.stat().st_mtime > 24 * 3600:
+                    shutil.rmtree(old, ignore_errors=True)
+            if shutil.disk_usage(root).free > need:
+                return str(root)
+            self.rep.log("Not enough local disk space for the temporary files - using the output folder.")
+        except OSError as e:
+            self.rep.log(f"Couldn't use {root} for temporary files ({e}) - using the output folder.")
+        return out_root
+
     def _ar_db(self) -> list[accuraterip.ARResponse]:
         if self._ar is None:
             try:
@@ -207,7 +234,7 @@ class RipJob:
                 raise ValueError(f"No encoder installed for {encoders.FORMATS[f].label}.")
         out_root = os.path.expanduser(cfg["output"]["directory"])
         os.makedirs(out_root, exist_ok=True)
-        work = tempfile.mkdtemp(prefix=".spindle-", dir=out_root)
+        work = tempfile.mkdtemp(prefix=".spindle-", dir=self._work_root(out_root))
         side = cf.ThreadPoolExecutor(max_workers=2)
         self._pool = cf.ThreadPoolExecutor(max_workers=max(1, int(cfg["output"].get("parallel_encoders", 2))))
         try:
@@ -345,10 +372,41 @@ class RipJob:
             self._enc_futures.append((None, fmt, fut))
 
     # ------------------------------------------------------------------ finish
+    def _merge_retry(self):
+        """Fold the earlier rip's other tracks back in, and drop the failed tracks' old files when
+        the new ones landed somewhere else (e.g. the title was corrected before retrying)."""
+        prev = self.retry_of
+        retried = set(self.track_order)
+        for n in retried:
+            old, new = prev.results.get(n), self.results.get(n)
+            if old and new and new.files:
+                for f in old.files:
+                    if f not in new.files and os.path.exists(f):
+                        os.remove(f)
+        for n in prev.track_order:
+            if n not in retried and n in prev.results:
+                self.results[n] = prev.results[n]
+        index = {t.number: i for i, t in enumerate(self.toc.audio_tracks)}
+        self.track_order = sorted(set(prev.track_order) | retried, key=lambda n: index.get(n, n))
+        self.retry_of = None                    # merged; don't keep a chain of old jobs alive
+
+    def _loudness_source(self, n: int) -> str:
+        """Audio to measure for ReplayGain: the rip's WAV, or - for tracks kept from an earlier rip,
+        whose WAVs are gone - the encoded file (lossless if there is one)."""
+        r = self.results[n]
+        if r.wav and os.path.exists(r.wav):
+            return r.wav
+        for fmt in sorted(r.by_format, key=lambda f: not encoders.FORMATS[f].lossless):
+            if os.path.exists(r.by_format[fmt]):
+                return r.by_format[fmt]
+        return r.wav
+
     def _finish(self):
         cfg = self.cfg
         ex = cfg["extras"]
         image = cfg["output"].get("mode") == "image"
+        if self.retry_of is not None and not image:
+            self._merge_retry()
         responses = self._ar_db()
         if self._ar_failed:
             self.ar_note = "AccurateRip: database could not be reached"
@@ -364,7 +422,7 @@ class RipJob:
             if image:
                 wavs, peaks = [self._image_wav], [self.results[self.track_order[0]].peak]
             else:
-                wavs = [self.results[n].wav for n in self.track_order]
+                wavs = [self._loudness_source(n) for n in self.track_order]
                 peaks = [self.results[n].peak for n in self.track_order]
             rg = extras.replaygain(wavs, peaks)
             if rg is None:

@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.12.0
+- **Retry failed** button: when tracks fail, rip just those again. Their new files replace the old
+  ones, and the log, cue sheet, playlist and album ReplayGain are redone for the whole album. Also
+  *Retry track N* when you right-click a failed track
+- Fixed rips stopping with "Operation not permitted" when the music folder is on a network share
+  (sshfs, SMB, NFS): the temporary WAV files now stay on your own disk (`~/.cache/spindle/work`) and
+  only the finished files are written to the music folder. Faster on network shares and USB drives too
+
 ## 1.11.1
 - The Settings button is always available, also while a disc is being read or looked up (the
   "please wait" shading no longer covers the button column)

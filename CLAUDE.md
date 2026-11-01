@@ -117,6 +117,11 @@ install without touching the real one: `HOME=$(mktemp -d) ./install.sh --no-deps
 - Fedora: `ffmpeg-free` (keep RPM Fusion's `ffmpeg` if it's installed), `qt6-qtmultimedia`,
   `qt6-qtsvg`, `chromaprint-tools`. The venv uses `--system-site-packages` so Fedora's PySide6 is reused.
 - MusicBrainz needs ≤1 request/s and a real User-Agent (`net.py` handles both).
+- Temporary WAVs go in `~/.cache/spindle/work` (`RipJob._work_root`), never the output folder. The
+  owner's music folder is on an sshfs share, where re-reading big files can fail with EPERM. The
+  output folder is only a fallback when local disk is short of space.
+- Retrying (`RipJob(retry_of=...)`) overwrites the failed tracks' files and merges results, so the
+  log/cue/m3u/ReplayGain cover the whole album. Keep that when touching `_finish`.
 
 ## Talking to the owner
 
