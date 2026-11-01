@@ -12,7 +12,7 @@ and its **Tag Files** tab fixes tags, artwork and file names for music you alrea
 ## Install
 
 ```sh
-git clone https://github.com/OWNER/spindle.git
+git clone https://github.com/voidxzero/spindle.git
 cd spindle
 ./install.sh
 ```
