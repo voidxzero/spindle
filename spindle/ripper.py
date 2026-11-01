@@ -1,7 +1,6 @@
 """Secure audio extraction via cdparanoia / libcdio cd-paranoia, plus a simulated drive."""
 from __future__ import annotations
 
-import fcntl
 import math
 import os
 import re
@@ -16,7 +15,13 @@ from typing import Callable
 
 import numpy as np
 
+from . import system
 from .disc import BYTES_PER_FRAME, TOC, DriveError, read_toc
+
+try:
+    import fcntl
+except ImportError:                  # Windows: no direct drive reads yet
+    fcntl = None
 
 CDROMREADAUDIO = 0x530E
 
@@ -107,7 +112,7 @@ class PCMStream:
 
 class _ProcStream(PCMStream):
     def __init__(self, cmd: list[str]):
-        self.proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        self.proc = system.popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
 
     def read(self, n: int) -> bytes:
         return self.proc.stdout.read(n) if self.proc.stdout else b""
@@ -243,7 +248,7 @@ class ParanoiaDrive(Drive):
         elif paranoia == "off":
             cmd.append("-Z")
         cmd += ["--", span, out]
-        proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
+        proc = system.popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                                 text=True, errors="replace", bufsize=1)
         res = RipResult(out)
         pat = re.compile(r"##:\s*-?\d+\s*\[(\w+)\]\s*@\s*(\d+)")

@@ -9,3 +9,8 @@ dist/
 *.tar.gz
 .venv/
 venv/
+
+# Windows build (made by windows/make_icon.py and PyInstaller)
+windows/spindle.ico
+/dist/
+/build/

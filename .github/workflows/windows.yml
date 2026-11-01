@@ -1,0 +1,142 @@
+# Builds Spindle for Windows: SpindleSetup-x.y.z.exe (installer) and a portable zip.
+# - Every push to main or the "windows" branch builds, tests, and keeps the files as a downloadable
+#   artifact (Actions tab ▸ the run ▸ Artifacts).
+# - On main, a version that hasn't been released yet becomes a GitHub Release with both files. The
+#   Windows updater offers the newest release, so pushing a new __version__ is all it takes.
+name: Windows build
+
+on:
+  push:
+    branches: [main, windows]
+  workflow_dispatch:
+
+permissions:
+  contents: write          # create releases
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      FFMPEG_ZIP: https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-win64-gpl-8.1.zip
+      FPCALC_ZIP: https://github.com/acoustid/chromaprint/releases/download/v1.6.2/chromaprint-fpcalc-1.6.2-windows-x86_64.zip
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Version
+        id: ver
+        shell: pwsh
+        run: |
+          $v = (Select-String -Path spindle/__init__.py -Pattern '__version__ = "(.+?)"').Matches[0].Groups[1].Value
+          "version=$v" >> $env:GITHUB_OUTPUT
+          Write-Host "Spindle $v"
+
+      - name: Python packages
+        run: |
+          python -m pip install --upgrade pip
+          pip install "PySide6>=6.6" mutagen numpy pillow pyinstaller
+
+      - name: Encoders (ffmpeg) and fpcalc
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force bin | Out-Null
+          Invoke-WebRequest $env:FFMPEG_ZIP -OutFile ffmpeg.zip
+          Expand-Archive ffmpeg.zip -DestinationPath ffmpeg-dl
+          Get-ChildItem ffmpeg-dl -Recurse -Include ffmpeg.exe, ffprobe.exe | Copy-Item -Destination bin
+          Get-ChildItem ffmpeg-dl -Recurse -Filter LICENSE.txt | Select-Object -First 1 | Copy-Item -Destination bin\FFMPEG-LICENSE.txt
+          Invoke-WebRequest $env:FPCALC_ZIP -OutFile fpcalc.zip
+          Expand-Archive fpcalc.zip -DestinationPath fpcalc-dl
+          Get-ChildItem fpcalc-dl -Recurse -Filter fpcalc.exe | Copy-Item -Destination bin
+          @"
+          Programs bundled with Spindle for Windows:
+
+          ffmpeg / ffprobe - FFmpeg (GPL build by BtbN): https://github.com/BtbN/FFmpeg-Builds
+            Source code: https://github.com/FFmpeg/FFmpeg (release/8.1) and the build scripts above.
+          fpcalc - Chromaprint 1.6.2 (MIT/LGPL): https://github.com/acoustid/chromaprint
+          "@ | Out-File -Encoding utf8 bin\THIRD-PARTY.txt
+          bin\ffmpeg.exe -hide_banner -version | Select-Object -First 1
+          $enc = bin\ffmpeg.exe -hide_banner -encoders
+          foreach ($c in "libmp3lame", "libopus", "libvorbis", "flac", "alac", "wavpack", " aac ") {
+            if (-not ($enc -match [regex]::Escape($c))) { throw "ffmpeg is missing the $c encoder" }
+          }
+          "$pwd\bin" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+
+      - name: Tests
+        env:
+          PYTHONIOENCODING: utf-8
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          python tests/test_engine.py
+          python tests/test_tagging.py
+          python tests/test_tagfiles.py
+          python tests/test_imageadjust.py
+          python tests/test_updater.py
+          python tests/test_convert.py
+
+      - name: Build Spindle.exe
+        run: |
+          python windows/make_icon.py
+          pyinstaller --noconfirm windows/spindle.spec --distpath dist --workpath build
+
+      - name: Add encoders and install record
+        shell: pwsh
+        run: |
+          Copy-Item bin dist\Spindle\bin -Recurse
+          $info = @{ repo = "${{ github.repository }}"; version = "${{ steps.ver.outputs.version }}" } | ConvertTo-Json
+          [IO.File]::WriteAllText("$pwd\dist\Spindle\install.json", $info)   # UTF-8 without BOM
+
+      - name: Self-test the built program
+        shell: pwsh
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: |
+          $p = Start-Process dist\Spindle\Spindle.exe -ArgumentList "--selftest", "$pwd\selftest.json" -Wait -PassThru
+          Get-Content selftest.json
+          if ($p.ExitCode -ne 0) { throw "self-test failed (exit $($p.ExitCode))" }
+
+      - name: Installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          & $iscc /Qp "/DVersion=${{ steps.ver.outputs.version }}" "/DRepo=${{ github.repository }}" windows\spindle.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed" }
+
+      - name: Portable zip
+        shell: pwsh
+        run: Compress-Archive -Path dist\Spindle -DestinationPath "dist\Spindle-${{ steps.ver.outputs.version }}-windows-portable.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Spindle-${{ steps.ver.outputs.version }}-windows
+          path: |
+            dist/SpindleSetup-*.exe
+            dist/Spindle-*-windows-portable.zip
+          retention-days: 14
+
+      - name: Release (new versions on main)
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $v = "${{ steps.ver.outputs.version }}"
+          gh release view "v$v" *> $null
+          if ($LASTEXITCODE -eq 0) { Write-Host "v$v is already released"; exit 0 }
+          # release notes = this version's section of CHANGELOG.md
+          $lines = Get-Content CHANGELOG.md -Encoding utf8
+          $start = [array]::IndexOf($lines, "## $v")
+          $notes = @()
+          if ($start -ge 0) {
+            for ($i = $start + 1; $i -lt $lines.Count -and -not $lines[$i].StartsWith("## "); $i++) { $notes += $lines[$i] }
+          }
+          ($notes -join "`n").Trim() | Out-File -Encoding utf8 notes.md
+          gh release create "v$v" "dist\SpindleSetup-$v.exe" "dist\Spindle-$v-windows-portable.zip" `
+            --title "Spindle $v" --notes-file notes.md --target "${{ github.sha }}"

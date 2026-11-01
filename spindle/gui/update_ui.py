@@ -97,7 +97,12 @@ class UpdateDialog(QDialog):
         self.buttons.rejected.connect(self.reject)
         v.addWidget(self.buttons)
         self.installed = False
-        if updater.installed_lib() is None:
+        self.portable = updater.windows_kind() == "portable"
+        if self.portable:
+            self.b_go.setText("Open download page")
+            self.status.setText("This is the portable version: download the new zip and unzip it over this "
+                                "folder (your settings are stored separately and are kept).")
+        elif not updater.can_update_itself():
             self.b_go.setEnabled(False)
             self.status.setText("You're running Spindle from a source folder, so it can't update itself. "
                                 "In that folder run:  git pull && ./install.sh")
@@ -109,6 +114,12 @@ class UpdateDialog(QDialog):
         self.log_view.appendPlainText(line)
 
     def _start(self):
+        if self.portable:
+            from PySide6.QtCore import QUrl
+            from PySide6.QtGui import QDesktopServices
+            QDesktopServices.openUrl(QUrl(updater.releases_page(self.info.repo)))
+            self.accept()
+            return
         if self.installed:
             restart_spindle()
             return
@@ -127,8 +138,28 @@ class UpdateDialog(QDialog):
             line = _Sig(str)
         self._pipe = _Pipe()
         self._pipe.line.connect(self._log)
+        if updater.windows_kind() == "installer":
+            run_async(updater.download_installer, self.info, self._pipe.line.emit,
+                      on_done=self._run_windows_setup, on_error=self._failed)
+            return
         run_async(updater.install, self.info.repo, self.info.latest, self._pipe.line.emit,
                   on_done=self._done, on_error=self._failed)
+
+    def _run_windows_setup(self, path: str):
+        """Windows can't replace a running program's files: start the setup, which waits for Spindle to
+        close, installs, and starts the new version."""
+        self.status.setText("<b>Installing…</b> Spindle will close and start again by itself in a moment.")
+        self._log("Starting the installer…")
+        try:
+            updater.launch_installer(path)
+        except OSError as e:
+            self._failed(f"couldn't start the installer: {e}")
+            return
+        self.installed = True
+        for w in QApplication.topLevelWidgets():
+            if w.objectName() == "SpindleMain":
+                w.close()
+        QApplication.quit()
 
     def _done(self, version: str):
         self.spin.stop()

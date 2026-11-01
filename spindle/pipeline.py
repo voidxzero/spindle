@@ -10,7 +10,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from . import accuraterip, coverart, encoders, extras, naming, tagger
+from . import accuraterip, coverart, encoders, extras, naming, system, tagger
 from .disc import BYTES_PER_FRAME, TOC
 from .metadata.base import AlbumMeta, CoverCandidate
 from .ripper import Cancelled, Drive, RipResult, wav_pcm
@@ -93,7 +93,7 @@ class RipJob:
         sectors = sum(self.toc.track(n).sectors for n in self.track_order)
         passes = 2 + int(self.cfg["drive"].get("retry_on_mismatch", 2))     # copies that can coexist
         need = sectors * BYTES_PER_FRAME * passes + 200 * 1024 * 1024
-        root = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "spindle" / "work"
+        root = system.cache_dir() / "work"
         try:
             root.mkdir(parents=True, exist_ok=True)
             for old in root.glob(".spindle-*"):             # left behind by a crash or power cut

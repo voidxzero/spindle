@@ -100,9 +100,10 @@ def test_destination_and_safety():
     music = os.path.join(tmp, "Music")
     it = convert.Item(os.path.join(music, "Album", "CD1", "01.flac"), base=os.path.join(music, "Album"))
     assert convert.destination(it, "mp3", None) == os.path.join(music, "Album", "CD1", "01.mp3")
-    assert convert.destination(it, "mp3", "/out") == "/out/Album/CD1/01.mp3"
+    out = os.path.join(tmp, "out")
+    assert convert.destination(it, "mp3", out) == os.path.join(out, "Album", "CD1", "01.mp3")
     single = convert.Item(os.path.join(music, "x.flac"))
-    assert convert.destination(single, "opus", "/out") == "/out/x.opus"
+    assert convert.destination(single, "opus", out) == os.path.join(out, "x.opus")
     # ALAC -> AAC next to the original would be the same .m4a: refuse rather than overwrite it
     src = os.path.join(tmp, "a.m4a")
     open(src, "wb").write(b"original")

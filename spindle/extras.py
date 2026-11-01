@@ -4,11 +4,10 @@ from __future__ import annotations
 import os
 import re
 import shutil
-import subprocess
 import tempfile
 from datetime import datetime
 
-from . import __version__
+from . import __version__, system
 from .disc import TOC, msf_str
 
 
@@ -27,7 +26,7 @@ def _ebur128(paths: list[str]) -> float | None:
         lst.close()
         inp = ["-f", "concat", "-safe", "0", "-i", lst.name]
     try:
-        p = subprocess.run([ff, "-nostdin", "-hide_banner", *inp, "-af", "ebur128", "-f", "null", "-"],
+        p = system.run([ff, "-nostdin", "-hide_banner", *inp, "-af", "ebur128", "-f", "null", "-"],
                            capture_output=True, text=True, errors="replace")
     finally:
         if lst:

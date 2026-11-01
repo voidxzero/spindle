@@ -6,6 +6,8 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 
+from . import system
+
 
 @dataclass(frozen=True)
 class Format:
@@ -39,7 +41,7 @@ def _ffmpeg_has(codec: str) -> bool:
         return False
     if not hasattr(_ffmpeg_has, "cache"):
         try:
-            out = subprocess.run([ff, "-hide_banner", "-encoders"], capture_output=True, text=True,
+            out = system.run([ff, "-hide_banner", "-encoders"], capture_output=True, text=True,
                                  timeout=10).stdout
         except (OSError, subprocess.TimeoutExpired):
             out = ""
@@ -143,7 +145,7 @@ def encode(key: str, opts: dict, src: str, dst: str) -> None:
         if cmd[0] == "ffmpeg" and FORMATS[key].ext != "m4a":
             cmd = cmd[:-1] + ["-f", {"flac": "flac", "wavpack": "wv", "mp3": "mp3", "opus": "opus",
                                      "vorbis": "ogg"}[key], tmp]
-        p = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
+        p = system.run(cmd, capture_output=True, text=True, errors="replace")
         if p.returncode != 0 or not os.path.exists(tmp):
             try:
                 os.remove(tmp)
