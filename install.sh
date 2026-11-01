@@ -51,9 +51,28 @@ EOF
 
 say "Creating Python environment in $PREFIX"
 mkdir -p "$PREFIX/lib"
-rm -rf "$PREFIX/lib/spindle"
-cp -r "$SRC/spindle" "$PREFIX/lib/spindle"
-find "$PREFIX/lib/spindle" -name __pycache__ -prune -exec rm -rf {} +
+# copy first, then swap, so a failed copy never leaves you without a working Spindle
+rm -rf "$PREFIX/lib/spindle.new" "$PREFIX/lib/spindle.old"
+cp -r "$SRC/spindle" "$PREFIX/lib/spindle.new"
+find "$PREFIX/lib/spindle.new" -name __pycache__ -prune -exec rm -rf {} +
+if [[ -d "$PREFIX/lib/spindle" ]]; then mv "$PREFIX/lib/spindle" "$PREFIX/lib/spindle.old"; fi
+mv "$PREFIX/lib/spindle.new" "$PREFIX/lib/spindle"
+rm -rf "$PREFIX/lib/spindle.old"
+
+# remember which GitHub repository this came from, so Spindle can check it for updates
+REPO="${SPINDLE_REPO:-}"
+if [[ -z "$REPO" ]] && command -v git >/dev/null && git -C "$SRC" rev-parse >/dev/null 2>&1; then
+  REPO=$(git -C "$SRC" remote get-url origin 2>/dev/null \
+         | sed -nE 's#^(https?://(www\.)?github\.com/|git@github\.com:|ssh://git@github\.com/)([^/]+/[^/]+)$#\3#p' \
+         | sed 's#\.git$##; s#/$##' || true)
+fi
+if [[ -n "$REPO" ]]; then
+  VER=$(sed -n 's/^__version__ = "\(.*\)"/\1/p' "$SRC/spindle/__init__.py")
+  printf '{\n  "repo": "%s",\n  "version": "%s"\n}\n' "$REPO" "$VER" > "$PREFIX/install.json"
+  say "Updates will come from github.com/$REPO"
+elif [[ ! -f "$PREFIX/install.json" ]]; then
+  warn "Couldn't tell which GitHub repository this is; set it in Settings > Updates to get updates."
+fi
 # --system-site-packages lets the env reuse distro packages (e.g. Fedora's python3-pyside6);
 # pip only fetches what's still missing.
 [[ -d "$PREFIX/venv" ]] || $PY -m venv --system-site-packages "$PREFIX/venv"

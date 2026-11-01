@@ -26,6 +26,8 @@ from .themes import THEMES, colors, stylesheet, theme_names
 from .widgets import (PROGRESS_ROLE, STATE_ROLE, CheckDelegate, CoverLabel, LoadingOverlay, SeekSlider,
                       Spinner, StatusDelegate, Visualizer, unify_heights)
 from . import sounds
+from .. import updater
+from .update_ui import UpdateBar, UpdateDialog
 from .workers import QtReporter, run_async
 
 
@@ -64,6 +66,8 @@ class MainWindow(QMainWindow):
         self._countdown.timeout.connect(lambda: self._tick_countdown())
         self._bridge = _LogBridge()
         self._mono_icons: list = []           # (widget, icon key, fallback) - recoloured on theme change
+        self._update_info = None
+        self.setObjectName("SpindleMain")
         self.setWindowTitle(f"Spindle {__version__}")
         self.resize(1180, 760)
         self._build()
@@ -74,6 +78,8 @@ class MainWindow(QMainWindow):
         self._populate_drives()
         self._check_tools()
         self._set_busy(False)
+        if self.cfg["update"].get("check_on_start", True):
+            QTimer.singleShot(2500, lambda: self.check_updates(manual=False))
         self.poll = QTimer(self)
         self.poll.timeout.connect(self._poll_drive)
         self.poll.start(2000)
@@ -84,7 +90,16 @@ class MainWindow(QMainWindow):
         self.player = CDPlayer(self)
         self.tabs = QTabWidget()
         self.tabs.setDocumentMode(True)
-        self.setCentralWidget(self.tabs)
+        shell = QWidget()
+        sv = QVBoxLayout(shell)
+        sv.setContentsMargins(0, 0, 0, 0)
+        sv.setSpacing(0)
+        self.update_bar = UpdateBar()
+        self.update_bar.details.connect(lambda: self._show_update(self._update_info))
+        self.update_bar.skip.connect(self._skip_update)
+        sv.addWidget(self.update_bar)
+        sv.addWidget(self.tabs, 1)
+        self.setCentralWidget(shell)
         central = QWidget()
         central.setObjectName("central")
         root = QHBoxLayout(central)
@@ -615,6 +630,7 @@ class MainWindow(QMainWindow):
             grp.addAction(a)
             sk.addAction(a)
         m = mb.addMenu("&Help")
+        act(m, "Check for updates…", lambda: self.check_updates(manual=True))
         act(m, "About Spindle", self._about)
 
     def _build_status(self):
@@ -1438,6 +1454,8 @@ class MainWindow(QMainWindow):
     def settings(self, tab: int = 0):
         self.player.stop()                      # key-disc detection needs the drive
         dlg = SettingsDialog(self.cfg, self._drive_info(), self, key_disc=lambda: (self.drive, self.toc))
+        if isinstance(tab, str):
+            tab = next((i for i in range(dlg.tabs.count()) if dlg.tabs.tabText(i) == tab), 0)
         if isinstance(tab, int):
             dlg.tabs.setCurrentIndex(tab)
         if dlg.exec():
@@ -1448,6 +1466,56 @@ class MainWindow(QMainWindow):
         else:
             self.cfg.__init__(self.cfg.path)   # discard any half-applied changes
         self.apply_theme(self.cfg["ui"]["theme"])
+
+    # ================================================================ updates
+    def check_updates(self, manual: bool = False):
+        repo = updater.repo_for(self.cfg)
+        if not repo:
+            if manual:
+                if QMessageBox.question(
+                        self, "Check for updates",
+                        "Spindle doesn't know which GitHub repository to update from.\n\n"
+                        "Set it in Settings ▸ Updates (for example  yourname/spindle)?") == QMessageBox.Yes:
+                    self.settings("Updates")
+            return
+        if manual:
+            self._working("Checking for updates…")
+
+        def done(info):
+            if manual:
+                self._idle()
+            self._update_info = info
+            if not info.available:
+                if manual:
+                    QMessageBox.information(self, "Check for updates",
+                                            f"You have the latest version (Spindle {info.current}).")
+                return
+            self.log(f"Spindle {info.latest} is available (you have {info.current}).")
+            if manual:
+                self._show_update(info)
+            elif info.latest != self.cfg["update"].get("skipped"):
+                self.update_bar.show_for(info)
+
+        def fail(msg):
+            if manual:
+                self._idle()
+                QMessageBox.warning(self, "Check for updates", f"Couldn't check for updates: {msg}")
+            else:
+                self.log(f"Update check skipped: {msg}")
+        run_async(updater.check, repo, on_done=done, on_error=fail)
+
+    def _show_update(self, info):
+        if info is None:
+            return
+        self.update_bar.hide()
+        UpdateDialog(info, busy=lambda: self.busy, parent=self).exec()
+
+    def _skip_update(self):
+        if self._update_info:
+            self.cfg["update"]["skipped"] = self._update_info.latest
+            self.cfg.save()
+            self.log(f"Skipping Spindle {self._update_info.latest}; Help ▸ Check for updates still offers it.")
+        self.update_bar.hide()
 
     def _about(self):
         QMessageBox.about(self, "About Spindle",

@@ -81,6 +81,11 @@ DEFAULTS: dict = {
         "file": "",                   # your own sound for a good rip; empty = built-in chime
         "volume": 80,
     },
+    "update": {
+        "check_on_start": True,       # look for a newer version on GitHub when Spindle starts
+        "repo": "",                   # owner/name; empty = the repository the installer recorded
+        "skipped": "",                # a version you chose to skip (not offered again on startup)
+    },
     "plugins": {},                    # per-plugin settings, keyed by provider name
     "tagger": {
         "rename": False,              # rename files with the naming template when saving

@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QDialog, QDia
 
 from .. import accuraterip, coverart, encoders, metadata, naming, net
 from ..config import DATA_DIR
+from ..updater import parse_repo as updater_parse
 from ..disc import DriveInfo, list_drives
 from ..metadata.base import AlbumMeta, CoverCandidate, TrackMeta
 from .themes import theme_names
@@ -861,6 +862,91 @@ class SettingsDialog(QDialog):
         self.theme.currentTextChanged.connect(lambda t: self.parent() and self.parent().apply_theme(t))
         f.addRow("Skin", self.theme)
         self.tabs.addTab(w, "Appearance")
+        self._update_tab()
+
+    def _update_tab(self):
+        from .. import __version__, updater
+        u = self.cfg["update"]
+        w = QWidget()
+        f = QFormLayout(w)
+        self.upd_check = QCheckBox("Check for a new version when Spindle starts")
+        self.upd_check.setChecked(u.get("check_on_start", True))
+        f.addRow("", self.upd_check)
+        recorded = updater.parse_repo(updater.install_info().get("repo", ""))
+        self.upd_repo = QLineEdit(u.get("repo", ""))
+        self.upd_repo.setPlaceholderText(recorded or "yourname/spindle")
+        self.upd_repo.setToolTip("The GitHub repository to update from, as owner/name or its URL. "
+                                 "Leave empty to use the one Spindle was installed from.")
+        f.addRow("GitHub repository", self.upd_repo)
+        where = updater.installed_lib()
+        note = QLabel(
+            (f"Installed from <b>github.com/{recorded}</b>. " if recorded else
+             "The installer couldn't tell which repository this came from - type it above. ")
+            + f"You have Spindle {__version__}. "
+            + ("Updating downloads the new version, reinstalls it in place (your settings, plugins and "
+               "drive offsets are kept) and restarts Spindle." if where else
+               "You're running from a source folder, so update with <tt>git pull && ./install.sh</tt>."))
+        note.setWordWrap(True)
+        note.setTextFormat(Qt.RichText)
+        note.setMinimumWidth(420)   # else the form sizes the wrapped text for a narrow column: big gap below
+        f.addRow("", note)
+        row = QHBoxLayout()
+        self.b_upd_check = QPushButton("Check for updates now")
+        self.b_upd_check.clicked.connect(self._check_updates)
+        self.b_upd_install = QPushButton("Update…")
+        self.b_upd_install.clicked.connect(self._open_update)
+        self.b_upd_install.hide()
+        self.upd_spin = Spinner(16)
+        self.upd_status = QLabel()
+        self.upd_status.setWordWrap(True)
+        row.addWidget(self.b_upd_check)
+        row.addWidget(self.b_upd_install)
+        row.addWidget(self.upd_spin)
+        row.addWidget(self.upd_status, 1)
+        f.addRow("", row)
+        self._upd_info = None
+        self.tabs.addTab(w, "Updates")
+
+    def _check_updates(self):
+        from .. import updater
+        # use what's typed in the box, even before Save, so a new repository can be tried straight away
+        repo = updater_parse(self.upd_repo.text()) or updater.parse_repo(updater.install_info().get("repo", ""))
+        if not repo:
+            self.upd_status.setText("Type the GitHub repository above first (for example  yourname/spindle).")
+            return
+        self.b_upd_check.setEnabled(False)
+        self.b_upd_install.hide()
+        self.upd_spin.start()
+        self.upd_status.setText(f"Checking github.com/{repo}…")
+
+        def done(info):
+            try:
+                self.upd_spin.stop()
+                self.b_upd_check.setEnabled(True)
+                self._upd_info = info
+                if info.available:
+                    self.upd_status.setText(f"<b>Spindle {info.latest} is available</b> (you have {info.current}).")
+                    self.b_upd_install.show()
+                else:
+                    self.upd_status.setText(f"You have the latest version (Spindle {info.current}).")
+            except RuntimeError:            # the dialog was closed while checking
+                pass
+
+        def fail(msg):
+            try:
+                self.upd_spin.stop()
+                self.b_upd_check.setEnabled(True)
+                self.upd_status.setText(f"Couldn't check for updates: {msg}")
+            except RuntimeError:
+                pass
+        run_async(updater.check, repo, on_done=done, on_error=fail)
+
+    def _open_update(self):
+        if self._upd_info is None:
+            return
+        from .update_ui import UpdateDialog
+        parent = self.parent()
+        UpdateDialog(self._upd_info, busy=lambda: bool(getattr(parent, "busy", False)), parent=self).exec()
 
     # --- save --------------------------------------------------------------
     def _save(self):
@@ -871,6 +957,14 @@ class SettingsDialog(QDialog):
                  test_and_copy=self.tnc.isChecked(), retry_on_mismatch=self.rereads.value(),
                  auto_read=self.autoread.isChecked(), eject_when_done=self.ejectdone.isChecked(),
                  auto_rip=self.autoread.isChecked() and self.autorip.isChecked())
+        repo_text = self.upd_repo.text().strip()
+        repo = updater_parse(repo_text)
+        if repo_text and not repo:
+            QMessageBox.warning(self, "Settings", "The GitHub repository should look like  yourname/spindle  "
+                                "or  https://github.com/yourname/spindle")
+            self.tabs.setCurrentIndex(self.tabs.count() - 1)
+            return
+        c.setdefault("update", {}).update(check_on_start=self.upd_check.isChecked(), repo=repo)
         c.setdefault("sound", {}).update(on_finish=self.snd_on.isChecked(), file=self.snd_file.text().strip(),
                                          volume=self.snd_vol.value())
         drv = self.drive

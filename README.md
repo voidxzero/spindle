@@ -12,12 +12,16 @@ and its **Tag Files** tab fixes tags, artwork and file names for music you alrea
 ## Install
 
 ```sh
-git clone https://github.com/voidxzero/spindle.git
+git clone https://github.com/OWNER/spindle.git
 cd spindle
 ./install.sh
 ```
 
-To update later: `git pull && ./install.sh` (your settings, offsets and plugins are kept).
+Spindle checks GitHub for a new version when it starts. When there is one, a bar appears at the top
+of the window: **Update…** shows what's new, installs it and restarts Spindle. Your settings, offsets
+and plugins are kept. You can also use **Help ▸ Check for updates…** or the **Check for updates now**
+button in **Settings ▸ Updates**, where you can also turn the startup check off. If you run Spindle from
+the cloned folder instead of installing it, update with `git pull && ./install.sh`.
 
 The installer uses your package manager (apt, dnf, pacman or zypper) to install `cdparanoia` and the
 encoders, creates a private Python environment with PySide6 and mutagen, and adds **Spindle** to your
@@ -174,6 +178,7 @@ python3 tests/test_engine.py      # disc IDs, AccurateRip, naming, simulated rip
 python3 tests/test_tagging.py     # tags + artwork round-trip in every format (needs mutagen, ffmpeg)
 python3 tests/test_tagfiles.py    # Tag Files matching, saving and batch rename
 python3 tests/test_imageadjust.py # cover editor colour adjustments
+python3 tests/test_updater.py     # update checks and installing (no network needed)
 ```
 
 ## Requirements

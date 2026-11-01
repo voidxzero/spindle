@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.10.0
+- Settings ▸ Updates has a **Check for updates now** button. It checks the repository typed in the
+  box (no need to save first) and offers **Update…** when there's a new version
+
+## 1.9.0
+- Updates: Spindle checks GitHub for a new version when it starts and shows a bar at the top of the
+  window; **Update…** shows what's new, downloads it, reinstalls in place (settings, plugins and drive
+  offsets are kept) and restarts. Also Help ▸ Check for updates…, and Skip this version
+- The installer remembers which GitHub repository it was installed from; change it or turn off the
+  startup check in Settings ▸ Updates
+- The installer swaps in the new program files only after copying them, so a failed copy can't break
+  an existing install
+
 ## 1.8.0
 - A chime plays when a rip finishes (a lower warning tone if any track had problems or the rip
   failed). Turn it off, pick your own sound or set the volume in Settings ▸ Drive
