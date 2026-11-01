@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.4.2
+- Seek bar: click anywhere to jump there, hold and drag to scrub, hover to see the time
+- Elapsed time on the left of the seek bar, track length on the right
+
 ## 1.4.1
 - Track checkboxes are drawn by Spindle itself, so they show on every row in every skin
   (Qt's style sheets skipped them on alternating rows)

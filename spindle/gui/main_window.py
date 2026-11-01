@@ -23,8 +23,8 @@ from .player import CDPlayer
 from .tagger_page import TaggerPage
 from . import icons
 from .themes import THEMES, colors, stylesheet, theme_names
-from .widgets import (PROGRESS_ROLE, STATE_ROLE, CheckDelegate, CoverLabel, LoadingOverlay, Spinner,
-                      StatusDelegate, Visualizer, unify_heights)
+from .widgets import (PROGRESS_ROLE, STATE_ROLE, CheckDelegate, CoverLabel, LoadingOverlay, SeekSlider,
+                      Spinner, StatusDelegate, Visualizer, unify_heights)
 from .workers import QtReporter, run_async
 
 
@@ -377,17 +377,21 @@ class MainWindow(QMainWindow):
                               active=lambda: self.player.state in ("playing", "buffering"))
         lay.addWidget(self.viz)
         lay.addSpacing(4)
-        self.pl_seek = QSlider(Qt.Horizontal)
-        self.pl_seek.setRange(0, 1000)
+        self.pl_seek = SeekSlider(lambda: self.player.length())
         self.pl_seek.setEnabled(False)
-        self.pl_seek.sliderReleased.connect(
-            lambda: self.player.seek(self.pl_seek.value() / 1000 * self.player.length()))
+        self.pl_seek.setToolTip("Click anywhere to jump there, or drag")
+        self.pl_seek.seekRequested.connect(lambda f: self.player.seek(f * self.player.length()))
+        # elapsed | seek bar | total  (fixed widths, so the bar never changes size)
+        self.pl_cur = QLabel("0:00")
+        self.pl_total = QLabel("0:00")
+        tw = self.pl_cur.fontMetrics().horizontalAdvance("00:00") + 8
+        for lbl, align in ((self.pl_cur, Qt.AlignRight), (self.pl_total, Qt.AlignLeft)):
+            lbl.setObjectName("dim")
+            lbl.setFixedWidth(tw)
+            lbl.setAlignment(align | Qt.AlignVCenter)
+        lay.addWidget(self.pl_cur)
         lay.addWidget(self.pl_seek, 1)
-        self.pl_time = QLabel("0:00 / 0:00")
-        self.pl_time.setObjectName("dim")
-        self.pl_time.setFixedWidth(self.pl_time.fontMetrics().horizontalAdvance("00:00 / 00:00") + 12)
-        self.pl_time.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        lay.addWidget(self.pl_time)
+        lay.addWidget(self.pl_total)
         vol_icon = QLabel()
         self._mono(vol_icon, "volume", S.SP_MediaVolume)
         lay.addSpacing(6)
@@ -496,7 +500,8 @@ class MainWindow(QMainWindow):
         if not self.pl_seek.isSliderDown():
             self.pl_seek.setValue(int(pos / length * 1000) if length else 0)
         fmt = lambda x: f"{int(x // 60)}:{int(x % 60):02d}"  # noqa: E731
-        self.pl_time.setText(f"{fmt(pos)} / {fmt(length)}")
+        self.pl_cur.setText(fmt(pos))
+        self.pl_total.setText(fmt(length))
 
     def _pl_track(self, n):
         r = self._row_of(n)

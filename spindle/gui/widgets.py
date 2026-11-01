@@ -4,8 +4,8 @@ from __future__ import annotations
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
-                               QPushButton, QStyle, QStyledItemDelegate, QStyleOptionViewItem,
-                               QVBoxLayout, QWidget)
+                               QPushButton, QSlider, QStyle, QStyledItemDelegate, QStyleOptionSlider,
+                               QStyleOptionViewItem, QToolTip, QVBoxLayout, QWidget)
 
 PROGRESS_ROLE = Qt.UserRole + 1
 STATE_ROLE = Qt.UserRole + 2     # "good" | "warn" | "bad" | ""
@@ -455,3 +455,67 @@ class CheckDelegate(QStyledItemDelegate):
         cur = Qt.CheckState(cur) if cur is not None and not isinstance(cur, bool) else cur
         new = Qt.Unchecked if cur == Qt.Checked else Qt.Checked
         return model.setData(index, new, Qt.CheckStateRole)
+
+
+class SeekSlider(QSlider):
+    """Seek bar: click anywhere to jump there, keep holding to scrub; hover shows the time.
+    Emits seekRequested(fraction 0..1) when the mouse is released."""
+    seekRequested = Signal(float)
+
+    def __init__(self, length_fn=lambda: 0.0, parent=None):
+        super().__init__(Qt.Horizontal, parent)
+        self.length_fn = length_fn
+        self.setRange(0, 1000)
+        self.setMouseTracking(True)
+        self._scrubbing = False
+
+    def isSliderDown(self) -> bool:            # the player won't move the handle while we scrub
+        return self._scrubbing or super().isSliderDown()
+
+    def _value_at(self, x: float) -> int:
+        opt = QStyleOptionSlider()
+        self.initStyleOption(opt)
+        groove = self.style().subControlRect(QStyle.CC_Slider, opt, QStyle.SC_SliderGroove, self)
+        handle = self.style().subControlRect(QStyle.CC_Slider, opt, QStyle.SC_SliderHandle, self)
+        left = groove.x() + handle.width() / 2
+        span = max(1.0, groove.width() - handle.width())
+        if groove.width() <= 0:                  # some styles report nothing useful
+            left, span = 0.0, max(1.0, float(self.width()))
+        frac = min(1.0, max(0.0, (x - left) / span))
+        return int(round(self.minimum() + frac * (self.maximum() - self.minimum())))
+
+    @staticmethod
+    def _fmt(sec: float) -> str:
+        return f"{int(sec // 60)}:{int(sec % 60):02d}"
+
+    def mousePressEvent(self, e):
+        if e.button() != Qt.LeftButton or not self.isEnabled():
+            return super().mousePressEvent(e)
+        self._scrubbing = True
+        self.setValue(self._value_at(e.position().x()))
+        e.accept()
+
+    def mouseMoveEvent(self, e):
+        v = self._value_at(e.position().x())
+        if self._scrubbing:
+            self.setValue(v)
+        length = self.length_fn()
+        if length and self.isEnabled():
+            QToolTip.showText(e.globalPosition().toPoint(),
+                              self._fmt(v / self.maximum() * length), self)
+        e.accept()
+
+    def mouseReleaseEvent(self, e):
+        if self._scrubbing and e.button() == Qt.LeftButton:
+            self._scrubbing = False
+            self.setValue(self._value_at(e.position().x()))
+            self.seekRequested.emit(self.value() / self.maximum())
+            e.accept()
+            return
+        super().mouseReleaseEvent(e)
+
+    def keyReleaseEvent(self, e):
+        # arrow keys / Page Up / Page Down also seek
+        if e.key() in (Qt.Key_Left, Qt.Key_Right, Qt.Key_PageUp, Qt.Key_PageDown, Qt.Key_Home, Qt.Key_End):
+            self.seekRequested.emit(self.value() / self.maximum())
+        super().keyReleaseEvent(e)
