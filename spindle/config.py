@@ -20,6 +20,7 @@ DEFAULTS: dict = {
         "test_and_copy": True,
         "retry_on_mismatch": 2,       # extra copy passes when test/copy CRCs differ
         "auto_read": True,            # read + look up as soon as a disc is inserted
+        "auto_rip": False,            # ...and then rip it without asking (after a short countdown)
         "eject_when_done": True,
     },
     "output": {

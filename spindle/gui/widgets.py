@@ -328,7 +328,8 @@ class Visualizer(QWidget):
         self._spectrum = spectrum
         self.source = source
         self.smooth = spectrum.Smoother(self.BANDS)
-        self.setFixedSize(4 * self.BANDS + 2 * (self.BANDS - 1) + 6, 28)   # 4px bars, 2px gaps
+        self.setFixedSize(4 * self.BANDS + 2 * (self.BANDS - 1) + 10, 30)  # 4px bars, 2px gaps, bezel
+        self.skin: dict | None = None                  # skin colours, or None for the System theme
         self.setToolTip("Spectrum analyser")
         self.bg = None
         self._timer = QTimer(self)
@@ -349,34 +350,58 @@ class Visualizer(QWidget):
         if target is None and self.smooth.idle and not self.active():
             self._timer.stop()
 
+    def _frame(self, p: QPainter, w: int, h: int):
+        """Same frame as the other display boxes: a sunken LCD bezel in the skins, the rounded
+        palette border in the System theme."""
+        p.setRenderHint(QPainter.Antialiasing)
+        k = self.skin
+        if k:
+            r = QRectF(1, 1, w - 2, h - 2)
+            p.setPen(Qt.NoPen)
+            p.setBrush(QColor(k["lcd_bg"]))
+            p.drawRoundedRect(r, 3, 3)
+            dark, light = QColor(k["inset"]), QColor(k["hilite"])
+            p.setBrush(Qt.NoBrush)
+            p.setPen(QPen(dark, 2))
+            p.drawRoundedRect(r, 3, 3)
+            p.setPen(QPen(light, 2))                    # highlight along the bottom and right edges
+            p.drawLine(QPointF(4, h - 1), QPointF(w - 4, h - 1))
+            p.drawLine(QPointF(w - 1, 4), QPointF(w - 1, h - 4))
+        else:
+            pal = self.palette()
+            p.setPen(QPen(pal.mid().color(), 1))
+            p.setBrush(pal.base())
+            p.drawRoundedRect(QRectF(0.5, 0.5, w - 1, h - 1), 4, 4)
+        p.setRenderHint(QPainter.Antialiasing, False)
+
     def paintEvent(self, _):
         p = QPainter(self)
         w, h = self.width(), self.height()
         pal = self.palette()
-        p.fillRect(self.rect(), self.bg or QColor("#0b0d10"))
-        p.setPen(QPen(pal.mid().color(), 1))
-        p.drawRect(0, 0, w - 1, h - 1)
-        inner_h = h - 6
+        self._frame(p, w, h)
+        inner_h = h - 8
         seg = 2                                        # 2px segments with 1px gaps, like the original
         rows = inner_h // (seg + 1)
         green, yellow, red = QColor("#3fd94a"), QColor("#e8d33a"), QColor("#e5482f")
         bars, peaks = self.smooth.bars, self.smooth.peaks
         unlit = QColor(pal.mid().color())
         unlit.setAlpha(55)
+        # peak caps: light grey on the dark LCD skins, the theme's text colour in a (possibly light) System theme
+        cap = QColor("#d8d8d8") if self.skin else QColor(pal.text().color())
         for i in range(self.BANDS):
-            x = 3 + i * 6
+            x = 5 + i * 6
             for r in range(rows):                      # faint unlit segments, so it reads as a meter
-                p.fillRect(x, h - 3 - (r + 1) * (seg + 1) + 1, 4, seg, unlit)
+                p.fillRect(x, h - 4 - (r + 1) * (seg + 1) + 1, 4, seg, unlit)
             lit = int(round(bars[i] * rows))
             for r in range(lit):
                 frac = r / max(1, rows - 1)
                 col = green if frac < 0.6 else (yellow if frac < 0.85 else red)
-                y = h - 3 - (r + 1) * (seg + 1) + 1
+                y = h - 4 - (r + 1) * (seg + 1) + 1
                 p.fillRect(x, y, 4, seg, col)
             pk = int(round(peaks[i] * rows))
             if pk > 0:
-                y = h - 3 - pk * (seg + 1) + 1
-                p.fillRect(x, y, 4, 1, QColor("#d8d8d8"))
+                y = h - 4 - pk * (seg + 1) + 1
+                p.fillRect(x, y, 4, 1, cap)
         p.end()
 
 

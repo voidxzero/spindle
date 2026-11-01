@@ -42,6 +42,14 @@ Every drive model reads audio a few samples early or late. Open **Settings ▸ D
 **Look up in AccurateRip** — Spindle finds your model in the AccurateRip offset list and remembers it.
 Without the right offset, AccurateRip will report "Not accurate" even for perfect rips.
 
+## Automatic ripping
+
+Turn on **Settings ▸ Drive ▸ …then rip it automatically**. When you insert a disc, Spindle reads it,
+looks it up, finds the cover and starts ripping after a 5-second countdown (press **Cancel auto-rip**
+to stop it). With several matching releases it uses the best one; if nothing matches it waits for
+you rather than ripping an unknown album. Add **Eject when the rip is finished** to feed discs in one
+after another. A disc that's already in the drive when Spindle starts is never ripped automatically.
+
 ## What it does
 
 | Step | How |

@@ -392,6 +392,14 @@ class SettingsDialog(QDialog):
         self.autoread = QCheckBox("Read disc and look up metadata as soon as a CD is inserted")
         self.autoread.setChecked(d["auto_read"])
         f.addRow("", self.autoread)
+        self.autorip = QCheckBox("…then rip it automatically (after a 5-second countdown you can cancel)")
+        self.autorip.setChecked(d.get("auto_rip", False))
+        self.autorip.setToolTip("Uses the best-matching release. If nothing matches, Spindle waits for you "
+                                "instead of ripping an unknown album. Pair with 'Eject when finished' to "
+                                "feed discs in one after another.")
+        self.autorip.setEnabled(d["auto_read"])
+        self.autoread.toggled.connect(self.autorip.setEnabled)
+        f.addRow("", self.autorip)
         self.ejectdone = QCheckBox("Eject when the rip is finished")
         self.ejectdone.setChecked(d["eject_when_done"])
         f.addRow("", self.ejectdone)
@@ -747,7 +755,8 @@ class SettingsDialog(QDialog):
         d.update(device=self.device.currentData(), read_offset=self.offset.value(),
                  paranoia=self.paranoia.currentData(), max_retries=self.retries.value(),
                  test_and_copy=self.tnc.isChecked(), retry_on_mismatch=self.rereads.value(),
-                 auto_read=self.autoread.isChecked(), eject_when_done=self.ejectdone.isChecked())
+                 auto_read=self.autoread.isChecked(), eject_when_done=self.ejectdone.isChecked(),
+                 auto_rip=self.autoread.isChecked() and self.autorip.isChecked())
         drv = self.drive
         dev = self.device.currentData()
         if dev:

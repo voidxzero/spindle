@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.5.1
+- Spectrum analyser framed like the other display boxes (LCD bezel in the skins, rounded border in
+  the System theme); peak caps readable in light themes
+
+## 1.5.0
+- Optional automatic ripping when a disc is inserted (Settings ▸ Drive), with a 5-second countdown you
+  can cancel; uses the best-matching release, and waits for you if nothing matches
+
 ## 1.4.2
 - Seek bar: click anywhere to jump there, hold and drag to scrub, hover to see the time
 - Elapsed time on the left of the seek bar, track length on the right

@@ -54,6 +54,13 @@ class MainWindow(QMainWindow):
         self.busy = False
         self._last_status = -1
         self._lookup_serial = 0
+        self._auto_rip_pending = False
+        self._countdown_left = 0
+        self._counting = False
+        self._countdown_toc = None
+        self._countdown = QTimer(self)
+        self._countdown.setInterval(1000)
+        self._countdown.timeout.connect(lambda: self._tick_countdown())
         self._bridge = _LogBridge()
         self._mono_icons: list = []           # (widget, icon key, fallback) - recoloured on theme change
         self.setWindowTitle(f"Spindle {__version__}")
@@ -635,6 +642,8 @@ class MainWindow(QMainWindow):
         if hasattr(self, "viz"):
             from PySide6.QtGui import QColor
             self.viz.bg = QColor(colors(name)["lcd_bg"]) if name in THEMES else None   # skins: LCD colour
+            self.viz.skin = THEMES.get(name)
+            self.viz.update()
 
     def _unify(self):
         """Line up the header's controls: every field, dropdown, spin box and button gets one height."""
@@ -817,6 +826,8 @@ class MainWindow(QMainWindow):
             return
         prev, self._last_status = self._last_status, st
         if st == CDS_DISC_OK and prev != CDS_DISC_OK and self.cfg["drive"]["auto_read"]:
+            # only a freshly inserted disc may auto-rip - never one you re-read by hand
+            self._auto_rip_pending = bool(self.cfg["drive"].get("auto_rip")) and prev != -1
             self.read_disc()
         elif st in (CDS_TRAY_OPEN, 1) and self.toc is not None:
             self._no_disc("TRAY OPEN" if st == CDS_TRAY_OPEN else "NO DISC")
@@ -934,7 +945,16 @@ class MainWindow(QMainWindow):
             self._fill_release_box()
             if not results:
                 self.log("No metadata found for this disc. Try Metadata ▸ Search, or type the details in.")
+                if self._auto_rip_pending:
+                    self._auto_rip_pending = False
+                    self._notify_auto_rip_skipped("no matching release was found")
+                    return
                 self.search_dialog()
+            elif self._auto_rip_pending and len(results) > 1:
+                self._working("Loading release details…", block=True)
+                self.log(f"Auto-rip: {len(results)} releases match - using the best one "
+                         f"({results[0].summary() or results[0].source}). Change it in Release if needed.")
+                self._apply_candidate(results[0])
             elif len(results) == 1 and self.cfg["metadata"]["auto_pick_single"]:
                 self._apply_candidate(results[0])
             else:
@@ -949,6 +969,9 @@ class MainWindow(QMainWindow):
             self._set_busy(False)
             self._idle()
             self.log(f"Lookup failed: {msg}")
+            if self._auto_rip_pending:
+                self._auto_rip_pending = False
+                self._notify_auto_rip_skipped("the metadata lookup failed")
         run_async(metadata.lookup_all, self.cfg, toc, self._log_from_thread, on_done=done, on_error=fail)
 
     def _log_from_thread(self, msg):
@@ -1000,13 +1023,20 @@ class MainWindow(QMainWindow):
                 return
             full.mb_disc_id = full.mb_disc_id or toc.musicbrainz_id()
             self._fill_fields(full)
+            then = self._begin_auto_rip_countdown if self._auto_rip_pending else None
+            self._auto_rip_pending = False
             if self.cfg["coverart"]["auto_fetch"] and self.cover is None:
-                self._auto_cover()
+                self._auto_cover(then=then)
+            elif then:
+                then()
 
         def fail(msg):
             self._set_busy(False)
             self._idle()
             self.log(f"Couldn't fetch details: {msg}")
+            if self._auto_rip_pending:
+                self._auto_rip_pending = False
+                self._begin_auto_rip_countdown()      # basic details are already filled in
         run_async(metadata.complete, self.cfg, cand, toc, on_done=done, on_error=fail)
 
     def _fill_fields(self, a: AlbumMeta):
@@ -1072,7 +1102,7 @@ class MainWindow(QMainWindow):
             QDesktopServices.openUrl(QUrl(url))
 
     # ================================================================== cover
-    def _auto_cover(self):
+    def _auto_cover(self, then=None):
         album = self._collect()
         self._working("Finding cover art…")
         self.cover_lbl.set_loading(True)
@@ -1084,11 +1114,15 @@ class MainWindow(QMainWindow):
                 self._set_cover(c)
             else:
                 self.log("No cover art found automatically. Click the cover box to search or load a file.")
+            if then:
+                then()
 
         def fail(m):
             self._idle()
             self.cover_lbl.set_loading(False)
             self.log(f"Cover search failed: {m}")
+            if then:
+                then()
         run_async(coverart.auto_pick, self.cfg, album, self._log_from_thread, on_done=done, on_error=fail)
 
     def _set_cover(self, c: CoverCandidate):
@@ -1148,6 +1182,8 @@ class MainWindow(QMainWindow):
             self._check_all(anyoff)
 
     def rip(self, image: bool):
+        if self._counting:
+            self._stop_countdown()
         if not self.toc or self.busy or not self.drive:
             return
         tracks = [self._num(r) for r in range(self.table.rowCount())
@@ -1197,9 +1233,62 @@ class MainWindow(QMainWindow):
         run_async(self.job.run, on_done=self._rip_done, on_error=self._rip_failed)
 
     def cancel(self):
+        if self._counting:
+            self._stop_countdown("Auto-rip cancelled - press Rip when you're ready")
+            return
         if self.job and self.busy:
             self.job.cancel.set()
             self.prog_label.setText("Cancelling…")
+
+    # ------------------------------------------------------------- auto-rip
+    AUTO_RIP_DELAY = 5
+
+    def _begin_auto_rip_countdown(self):
+        if not self.toc or self.busy:
+            return
+        self._counting = True
+        self._countdown_left = self.AUTO_RIP_DELAY
+        self._countdown_toc = self.toc
+        self.b_cancel.setEnabled(True)
+        self.b_cancel.setText("Cancel auto-rip")
+        self.lcd.setText("AUTO-RIP")
+        self._tick_countdown()
+        self._countdown.start()
+
+    def _tick_countdown(self):
+        if not self._counting:
+            return
+        if self.busy:                                  # you started something yourself - step aside quietly
+            self._stop_countdown()
+            return
+        if self.toc is not self._countdown_toc:        # disc was ejected or changed
+            self._stop_countdown("Auto-rip cancelled")
+            return
+        if self._countdown_left <= 0:
+            self._stop_countdown()
+            self.log("Auto-rip: starting")
+            self.rip(False)
+            return
+        self.prog_label.setText(f"Auto-rip starts in {self._countdown_left} s…  (Cancel to stop)")
+        self._countdown_left -= 1
+
+    def _stop_countdown(self, message: str = ""):
+        self._countdown.stop()
+        self._counting = False
+        self._countdown_left = 0
+        self.b_cancel.setText("Cancel")
+        if not self.busy:
+            self.b_cancel.setEnabled(False)
+        if message:
+            self.prog_label.setText(message)
+            if self.toc:
+                mins = self.toc.total_seconds
+                self.lcd.setText(f"{len(self.toc.audio_tracks):02d} TRACKS   {int(mins // 60):02d}:{int(mins % 60):02d}")
+
+    def _notify_auto_rip_skipped(self, why: str):
+        self.log(f"Auto-rip skipped: {why}. Fill in the details and press Rip.")
+        self.prog_label.setText("Auto-rip skipped - check the details")
+        QApplication.alert(self)
 
     @staticmethod
     def _short_status(text: str) -> str:
