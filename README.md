@@ -56,6 +56,12 @@ to stop it). With several matching releases it uses the best one; if nothing mat
 you rather than ripping an unknown album. Add **Eject when the rip is finished** to feed discs in one
 after another. A disc that's already in the drive when Spindle starts is never ripped automatically.
 
+## Finish sound
+
+When a rip finishes, Spindle plays a short rising chime, or a lower two-note tone if any track had
+problems. **Settings ▸ Drive** turns it off, sets the volume, or picks your own sound file for good
+rips (WAV, FLAC, OGG, MP3…); **Test** plays it (hold Shift for the problem tone).
+
 ## What it does
 
 | Step | How |

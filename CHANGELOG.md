@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.8.0
+- A chime plays when a rip finishes (a lower warning tone if any track had problems or the rip
+  failed). Turn it off, pick your own sound or set the volume in Settings ▸ Drive
+
 ## 1.7.1
 - Removing the disc (or opening the tray) now clears its details, track list, cover art and
   now-playing info, and cancels a pending auto-rip; the log and Open folder are kept

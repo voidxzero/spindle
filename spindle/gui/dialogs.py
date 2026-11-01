@@ -8,7 +8,7 @@ from PySide6.QtGui import QDesktopServices, QIcon, QPixmap
 from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QDialog, QDialogButtonBox,
                                QFileDialog, QFormLayout, QGroupBox, QHBoxLayout,
                                QHeaderView, QLabel, QLineEdit, QListWidget, QListWidgetItem,
-                               QMessageBox, QPushButton, QRadioButton, QScrollArea, QSpinBox,
+                               QMessageBox, QPushButton, QRadioButton, QScrollArea, QSlider, QSpinBox,
                                QStackedWidget, QTabWidget, QTableWidget, QTableWidgetItem,
                                QVBoxLayout, QWidget)
 
@@ -410,7 +410,58 @@ class SettingsDialog(QDialog):
         self.ejectdone = QCheckBox("Eject when the rip is finished")
         self.ejectdone.setChecked(d["eject_when_done"])
         f.addRow("", self.ejectdone)
+        self._sound_rows(f)
         self.tabs.addTab(w, "Drive")
+
+    def _sound_rows(self, f):
+        snd = self.cfg["sound"]
+        self.snd_on = QCheckBox("Play a sound when the rip is finished")
+        self.snd_on.setChecked(snd.get("on_finish", True))
+        self.snd_on.setToolTip("A rising chime when every track is fine; a lower two-note tone if any track "
+                               "had problems or the rip failed.")
+        f.addRow("", self.snd_on)
+        self.snd_file = QLineEdit(snd.get("file", ""))
+        self.snd_file.setPlaceholderText("Built-in chime")
+        self.snd_file.setToolTip("Your own sound for a good rip (WAV, FLAC, OGG, MP3…). Leave empty for the "
+                                 "built-in chime. Problems always use the built-in warning tone.")
+        browse = QPushButton("Browse…")
+        browse.clicked.connect(self._pick_sound)
+        reset = QPushButton("Default")
+        reset.clicked.connect(self.snd_file.clear)
+        self.snd_vol = QSlider(Qt.Horizontal)
+        self.snd_vol.setRange(0, 100)
+        self.snd_vol.setValue(int(snd.get("volume", 80)))
+        self.snd_vol.setMinimumWidth(120)
+        test = QPushButton("Test")
+        test.setToolTip("Play the finish sound (hold Shift for the problem tone)")
+        test.clicked.connect(self._test_sound)
+        row = QHBoxLayout()
+        row.addWidget(self.snd_file, 1)
+        row.addWidget(browse)
+        row.addWidget(reset)
+        f.addRow("Finish sound", row)
+        vrow = QHBoxLayout()
+        vrow.addWidget(self.snd_vol, 1)
+        vrow.addWidget(test)
+        f.addRow("Volume", vrow)
+        for wdg in (self.snd_file, browse, reset, self.snd_vol, test):
+            wdg.setEnabled(self.snd_on.isChecked())
+            self.snd_on.toggled.connect(wdg.setEnabled)
+
+    def _pick_sound(self):
+        path, _ = QFileDialog.getOpenFileName(self, "Finish sound", os.path.dirname(self.snd_file.text()) or
+                                              os.path.expanduser("~"),
+                                              "Sounds (*.wav *.flac *.ogg *.oga *.opus *.mp3 *.m4a);;All files (*)")
+        if path:
+            self.snd_file.setText(path)
+
+    def _test_sound(self):
+        from PySide6.QtWidgets import QApplication
+        from . import sounds
+        problem = bool(QApplication.keyboardModifiers() & Qt.ShiftModifier)
+        path = sounds.resolve({"on_finish": True, "file": self.snd_file.text()}, problem)
+        if not sounds.play(path, self.snd_vol.value() / 100):
+            QMessageBox.information(self, "Finish sound", "Couldn't play the sound - no audio player found.")
 
     def _detect_offset(self):
         dev = self.device.currentData()
@@ -820,6 +871,8 @@ class SettingsDialog(QDialog):
                  test_and_copy=self.tnc.isChecked(), retry_on_mismatch=self.rereads.value(),
                  auto_read=self.autoread.isChecked(), eject_when_done=self.ejectdone.isChecked(),
                  auto_rip=self.autoread.isChecked() and self.autorip.isChecked())
+        c.setdefault("sound", {}).update(on_finish=self.snd_on.isChecked(), file=self.snd_file.text().strip(),
+                                         volume=self.snd_vol.value())
         drv = self.drive
         dev = self.device.currentData()
         if dev:

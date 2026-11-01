@@ -76,6 +76,11 @@ DEFAULTS: dict = {
         "geometry": "",
         "show_log": True,
     },
+    "sound": {
+        "on_finish": True,            # chime when a rip finishes (a different tone if it had problems)
+        "file": "",                   # your own sound for a good rip; empty = built-in chime
+        "volume": 80,
+    },
     "plugins": {},                    # per-plugin settings, keyed by provider name
     "tagger": {
         "rename": False,              # rename files with the naming template when saving

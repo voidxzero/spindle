@@ -25,6 +25,7 @@ from . import icons
 from .themes import THEMES, colors, stylesheet, theme_names
 from .widgets import (PROGRESS_ROLE, STATE_ROLE, CheckDelegate, CoverLabel, LoadingOverlay, SeekSlider,
                       Spinner, StatusDelegate, Visualizer, unify_heights)
+from . import sounds
 from .workers import QtReporter, run_async
 
 
@@ -1407,6 +1408,7 @@ class MainWindow(QMainWindow):
         acc = sum(1 for r in job.results.values() if r.ar and r.ar.status == "accurate")
         if not job.cancel.is_set():
             self.prog_label.setText(f"{good}/{len(job.results)} OK · {acc} AccurateRip verified")
+            self._finish_sound(problem=not ok or bool(job.errors) or good < len(job.results))
             if job.errors:
                 QMessageBox.warning(self, "Rip finished with problems", "\n".join(job.errors[:12]))
             if ok and self.cfg["drive"]["eject_when_done"]:
@@ -1418,7 +1420,15 @@ class MainWindow(QMainWindow):
         self.lcd.setText("ERROR")
         self.prog_label.setText("Rip failed")
         self.log(f"Rip failed: {msg}")
+        self._finish_sound(problem=True)
         QMessageBox.critical(self, "Rip failed", msg)
+
+    def _finish_sound(self, problem: bool):
+        snd = self.cfg["sound"]
+        try:
+            sounds.play(sounds.resolve(snd, problem), int(snd.get("volume", 80)) / 100)
+        except Exception as e:                  # a missing sound must never spoil a finished rip
+            self.log(f"Couldn't play the finish sound: {e}")
 
     def _open_output(self):
         if self.job and self.job.output_dir:
