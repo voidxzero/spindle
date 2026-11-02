@@ -85,6 +85,7 @@ jobs:
           python tests/test_windrive.py
           python tests/test_crashlog.py
           python tests/test_winstyle.py
+          python tests/test_workers.py
 
       - name: Build Spindle.exe
         run: |

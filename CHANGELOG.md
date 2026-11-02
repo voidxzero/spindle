@@ -3,6 +3,11 @@
 Spindle for Linux has its own version numbers. Windows changes are in
 [CHANGELOG-windows.md](CHANGELOG-windows.md) (versions 1.14.0-1.15.0 below were shared with Windows).
 
+## 1.16.1
+- Fixed crashes when an online lookup finished while a window was open: choosing or cancelling in
+  *Choose release*, the update window, offset detection, and sometimes right at start-up. Background
+  work now hands its results back in a way that can't crash
+
 ## 1.16.0
 - **Modern Night** is now the default look. If you were on the System theme, Spindle switches to Modern
   Night once after this update; a skin you picked yourself is kept. *Options ▸ Skin ▸ System* still

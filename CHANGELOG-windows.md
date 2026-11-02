@@ -2,6 +2,11 @@
 
 Spindle for Windows has its own version numbers. Linux changes are in [CHANGELOG.md](CHANGELOG.md).
 
+## 1.16.1
+- Fixed crashes when an online lookup finished while a window was open: choosing or cancelling in
+  *Choose release*, the update window, offset detection, and sometimes right at start-up. Background
+  work now hands its results back in a way that can't crash
+
 ## 1.16.0
 - The title bar now matches Spindle's look: it takes the skin's colours on Windows 11, and follows dark
   or light on Windows 10. Dialogs too

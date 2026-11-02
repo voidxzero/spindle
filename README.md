@@ -221,6 +221,7 @@ python3 tests/test_convert.py     # Convert tab: every format, tags + cover, 24-
 python3 tests/test_windrive.py    # Windows drive: TOC, offsets, re-reads, cache flush, full rip (any OS)
 python3 tests/test_crashlog.py    # the log catches hard crashes and notices an unclean exit
 python3 tests/test_winstyle.py    # Windows look: title bar colours, System theme dark/light
+python3 tests/test_workers.py     # background tasks: every result exactly once, even with nested dialogs
 ```
 
 ## Requirements
