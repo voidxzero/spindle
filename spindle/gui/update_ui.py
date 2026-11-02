@@ -1,9 +1,10 @@
 """Update notification bar and the update dialog."""
 from __future__ import annotations
 
+import os
 import sys
 
-from PySide6.QtCore import QProcess, Signal
+from PySide6.QtCore import QProcess, QTimer, Signal
 from PySide6.QtWidgets import (QApplication, QDialog, QDialogButtonBox, QFrame, QHBoxLayout, QLabel,
                                QPlainTextEdit, QPushButton, QTextBrowser, QToolButton, QVBoxLayout)
 
@@ -45,17 +46,33 @@ class UpdateBar(QFrame):
         self.show()
 
 
+_restarting = False
+
+
+def shut_down():
+    """Close this Spindle for good. Dialogs shown with exec() (Settings, the update dialog) run their own
+    event loops, which QApplication.quit() alone doesn't end - the old window would stay open and
+    pressing Restart again would start yet another Spindle."""
+    for w in QApplication.topLevelWidgets():
+        if isinstance(w, QDialog) and w.isVisible():
+            w.done(0)                         # done() skips our reject(), which would restart again
+    QApplication.closeAllWindows()            # the main window saves its settings as it closes
+    QApplication.quit()
+    QTimer.singleShot(2000, lambda: os._exit(0))   # last resort if something still holds the process
+
+
 def restart_spindle():
-    """Start a fresh Spindle (the newly installed code) and close this one."""
+    """Start a fresh Spindle (the newly installed code) and close this one - exactly once."""
+    global _restarting
+    if _restarting:
+        return
+    _restarting = True
     lib = updater.installed_lib()
     code = ("import sys; sys.path.insert(0, %r); from spindle.gui.app import main; "
             "sys.exit(main(sys.argv[1:]))" % str(lib)) if lib else \
         "import sys; from spindle.gui.app import main; sys.exit(main(sys.argv[1:]))"
     QProcess.startDetached(sys.executable, ["-c", code, *sys.argv[1:]])
-    for w in QApplication.topLevelWidgets():
-        if w.objectName() == "SpindleMain":
-            w.close()
-    QApplication.quit()
+    shut_down()
 
 
 class UpdateDialog(QDialog):
@@ -156,10 +173,7 @@ class UpdateDialog(QDialog):
             self._failed(f"couldn't start the installer: {e}")
             return
         self.installed = True
-        for w in QApplication.topLevelWidgets():
-            if w.objectName() == "SpindleMain":
-                w.close()
-        QApplication.quit()
+        shut_down()                             # the setup waits for this Spindle to exit
 
     def _done(self, version: str):
         self.spin.stop()

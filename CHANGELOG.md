@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.14.1
+- Fixed several Spindle windows opening after an update: the old window now closes properly when
+  Spindle restarts, and pressing *Restart now* more than once only starts one new Spindle
+
 ## 1.14.0
 - **Spindle for Windows** (first stage): a normal installer (`SpindleSetup-1.14.0.exe`) and a portable
   zip, on the GitHub releases page. Tag Files and Convert work fully; ffmpeg is included, so nothing
