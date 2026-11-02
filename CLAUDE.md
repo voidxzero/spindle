@@ -74,6 +74,7 @@ python3 tests/test_convert.py              # Convert: every format, tags + cover
 python3 tests/test_windrive.py             # Windows drive logic against a fake disc (runs on Linux too)
 python3 tests/test_crashlog.py             # crash log: hard crashes + unclean-exit notice
 python3 tests/test_winstyle.py             # Windows look logic: title bar colours, dark/light switch
+python3 tests/test_workers.py              # background tasks: results exactly once, nested dialogs + GC
 ruff check --select F,E9 spindle tests     # must pass
 bash -n install.sh
 ```
@@ -170,6 +171,9 @@ install without touching the real one: `HOME=$(mktemp -d) ./install.sh --no-deps
 - Fedora: `ffmpeg-free` (keep RPM Fusion's `ffmpeg` if it's installed), `qt6-qtmultimedia`,
   `qt6-qtsvg`, `chromaprint-tools`. The venv uses `--system-site-packages` so Fedora's PySide6 is reused.
 - MusicBrainz needs ≤1 request/s and a real User-Agent (`net.py` handles both).
+- Background work goes through `workers.run_async()` (Python thread pool + ONE long-lived dispatcher
+  QObject). Never create a QObject per task or let Python garbage-collect QObjects that Qt may still be
+  delivering to: on Windows that made Qt abort (1.15.1/1.16.0 crashes). Callback errors are logged.
 - Temporary WAVs go in `~/.cache/spindle/work` (`RipJob._work_root`), never the output folder. The
   owner's music folder is on an sshfs share, where re-reading big files can fail with EPERM. The
   output folder is only a fallback when local disk is short of space.

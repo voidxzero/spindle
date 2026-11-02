@@ -18,6 +18,7 @@ DEFAULTS: dict = {
         "device": "",                 # empty = first drive found
         "read_offset": 0,             # samples; look yours up with "Detect offset"
         "offsets_by_model": {},       # remembered per drive model
+        "offset_prompt_skip": [],     # drive models whose "set up the offset" prompt was turned off
         "paranoia": "full",           # full | no-extra | off
         "max_retries": 20,
         "test_and_copy": True,

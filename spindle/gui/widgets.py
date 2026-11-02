@@ -188,6 +188,8 @@ class Spinner(QWidget):
         self.color: QColor | None = None
         self.hide()
 
+    default_color: QColor | None = None       # the skin's accent (set by the main window), else highlight
+
     def start(self):
         self.show()
         self._timer.start()
@@ -203,7 +205,7 @@ class Spinner(QWidget):
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
-        base = self.color or self.palette().highlight().color()
+        base = self.color or Spinner.default_color or self.palette().highlight().color()
         s = min(self.width(), self.height())
         r = s / 2
         dot = max(2.0, s / 7)
@@ -244,6 +246,8 @@ def unify_heights(widgets, reference=None) -> int:
 class LoadingOverlay(QWidget):
     """Dims its parent and shows a centred spinner card; swallows clicks while visible."""
 
+    skin: dict | None = None     # the active skin's colours (set by the main window); None = palette
+
     def __init__(self, parent: QWidget):
         super().__init__(parent)
         self._host = parent
@@ -267,6 +271,9 @@ class LoadingOverlay(QWidget):
     def show_message(self, text: str):
         self._active = True
         self.label.setText(text)
+        # skins colour widgets with a stylesheet, not the palette: draw the card in the skin's colours
+        s = LoadingOverlay.skin
+        self.label.setStyleSheet(f"color: {s['text']}; background: transparent;" if s else "")
         self._fit()
         self.raise_()
         self.show()
@@ -301,13 +308,21 @@ class LoadingOverlay(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         pal = self.palette()
-        dim = QColor(pal.window().color())
+        s = LoadingOverlay.skin
+        dim = QColor(s["bg"] if s else pal.window().color())
         dim.setAlpha(150)
         p.fillRect(self.rect(), dim)
-        # the card: a rounded panel in the base colour with a subtle border
+        # the card: a rounded panel with a subtle border, in the skin's panel colours or the palette's
         r = QRectF(self.card.geometry()).adjusted(0.5, 0.5, -0.5, -0.5)
-        p.setPen(QPen(pal.mid().color(), 1))
-        p.setBrush(pal.base().color())
+        if s:
+            g = QLinearGradient(0, r.top(), 0, r.bottom())
+            g.setColorAt(0, QColor(s["panel_top"]))
+            g.setColorAt(1, QColor(s["panel_bot"]))
+            p.setPen(QPen(QColor(s["accent"]), 1))
+            p.setBrush(g)
+        else:
+            p.setPen(QPen(pal.mid().color(), 1))
+            p.setBrush(pal.base().color())
         p.drawRoundedRect(r, 10, 10)
         p.end()
 

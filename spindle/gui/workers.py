@@ -1,68 +1,75 @@
-"""Background execution helpers for the Qt front-end."""
+"""Background execution helpers for the Qt front-end.
+
+Tasks run on a plain Python thread pool and report back through ONE long-lived QObject. No Qt object is
+created or destroyed per task: earlier versions made a small QObject for every task and let Python
+clean it up, and on Windows that clean-up could land in the middle of delivering a result, which made
+Qt abort (Spindle 1.15.1 crashed that way)."""
 from __future__ import annotations
 
+import concurrent.futures as cf
+import itertools
+import threading
 import traceback
 
-from PySide6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Signal
+from PySide6.QtCore import QObject, Signal
 
 from ..pipeline import Reporter
 
 
-class _Signals(QObject):
-    done = Signal(object)
-    failed = Signal(str)
+class _Dispatcher(QObject):
+    """Lives as long as Spindle. Worker threads emit; Qt delivers on the GUI thread."""
+    finished = Signal(int, bool, object)          # task id, succeeded, result or error message
 
-
-class _Runnable(QRunnable):
-    def __init__(self, fn, args, kwargs):
+    def __init__(self):
         super().__init__()
-        self.fn, self.args, self.kwargs = fn, args, kwargs
-        self.signals = _Signals()
-        self.setAutoDelete(True)
+        self.callbacks: dict[int, tuple] = {}
+        self.finished.connect(self._deliver)
 
-    def run(self):
+    def _deliver(self, task: int, ok: bool, payload) -> None:
+        on_done, on_error = self.callbacks.pop(task, (None, None))
+        cb = on_done if ok else on_error
+        if cb is None:
+            return
         try:
-            result = self.fn(*self.args, **self.kwargs)
-        except Exception as e:  # noqa: BLE001
-            msg = str(e) or e.__class__.__name__
+            cb(payload)
+        except Exception:  # noqa: BLE001 - a bug in a callback goes to the log, never into Qt's event loop
             from .. import crashlog
-            crashlog.write(f"Background task {getattr(self.fn, '__name__', self.fn)} failed:\n"
-                           + traceback.format_exc())
-            self.signals.failed.emit(msg)
-        else:
-            self.signals.done.emit(result)
+            crashlog.write(f"Error handling the result of a background task:\n{traceback.format_exc()}")
 
 
-_alive: set[_Signals] = set()
+_pool = cf.ThreadPoolExecutor(max_workers=8, thread_name_prefix="spindle")
+_ids = itertools.count(1)
+_lock = threading.Lock()
+_dispatcher: _Dispatcher | None = None
+
+
+def _get_dispatcher() -> _Dispatcher:
+    global _dispatcher
+    if _dispatcher is None:                       # created on first use, on the GUI thread
+        _dispatcher = _Dispatcher()
+    return _dispatcher
 
 
 def run_async(fn, *args, on_done=None, on_error=None, **kwargs) -> None:
-    """Run fn(*args) on the thread pool; callbacks fire on the GUI thread."""
-    r = _Runnable(fn, args, kwargs)
-    sig = r.signals
-    _alive.add(sig)
+    """Run fn(*args) on a worker thread; on_done(result) / on_error(message) run on the GUI thread."""
+    d = _get_dispatcher()
+    with _lock:
+        task = next(_ids)
+    d.callbacks[task] = (on_done, on_error)
 
-    # Keep the messenger alive until its callback has completely finished - callbacks can open windows
-    # (Choose release…) that run for a while inside the signal - and let it go only afterwards.
-    def _release():
-        QTimer.singleShot(0, lambda: _alive.discard(sig))
-
-    def _done(res):
+    def work():
         try:
-            if on_done:
-                on_done(res)
-        finally:
-            _release()
-
-    def _fail(msg):
+            result = fn(*args, **kwargs)
+            ok = True
+        except Exception as e:  # noqa: BLE001
+            from .. import crashlog
+            crashlog.write(f"Background task {getattr(fn, '__name__', fn)} failed:\n" + traceback.format_exc())
+            result, ok = str(e) or e.__class__.__name__, False
         try:
-            if on_error:
-                on_error(msg)
-        finally:
-            _release()
-    sig.done.connect(_done)
-    sig.failed.connect(_fail)
-    QThreadPool.globalInstance().start(r)
+            d.finished.emit(task, ok, result)
+        except RuntimeError:                      # Spindle is shutting down: nobody left to tell
+            pass
+    _pool.submit(work)
 
 
 class QtReporter(QObject, Reporter):
