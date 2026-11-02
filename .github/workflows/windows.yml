@@ -7,7 +7,7 @@ name: Windows build
 
 on:
   push:
-    branches: [main, windows]
+    branches: [main, windows, "windows-*"]
   workflow_dispatch:
 
 permissions:
@@ -79,6 +79,7 @@ jobs:
           python tests/test_imageadjust.py
           python tests/test_updater.py
           python tests/test_convert.py
+          python tests/test_windrive.py
 
       - name: Build Spindle.exe
         run: |

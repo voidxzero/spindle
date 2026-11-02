@@ -15,8 +15,9 @@ and its **Tag Files** tab fixes tags, artwork and file names for music you alrea
 
 Download **SpindleSetup-x.y.z.exe** from the [releases page](https://github.com/voidxzero/spindle/releases/latest)
 and run it (no administrator rights needed), or take the **portable zip** and unzip it anywhere. Everything
-Spindle needs, including ffmpeg, is included. On Windows, **Tag Files** and **Convert** work fully; **CD
-ripping on Windows is coming in a later version**. Settings are kept in `%APPDATA%\Spindle`.
+Spindle needs, including ffmpeg, is included. Everything works on Windows: ripping, playing CDs, Tag Files and
+Convert. Windows reads the disc directly (no cdparanoia), re-reading bad spots sector by sector, and
+AccurateRip plus Test & copy check every track. Settings are kept in `%APPDATA%\Spindle`.
 
 Windows may warn that the installer is from an unknown publisher (it isn't code-signed): choose
 *More info* ▸ *Run anyway*.
@@ -210,6 +211,7 @@ python3 tests/test_tagfiles.py    # Tag Files matching, saving and batch rename
 python3 tests/test_imageadjust.py # cover editor colour adjustments
 python3 tests/test_updater.py     # update checks and installing (no network needed)
 python3 tests/test_convert.py     # Convert tab: every format, tags + cover, 24-bit, safety
+python3 tests/test_windrive.py    # Windows drive: TOC, offsets, re-reads, cache flush, full rip (any OS)
 ```
 
 ## Requirements

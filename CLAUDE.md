@@ -23,6 +23,8 @@ spindle/
   tagger.py        mutagen tagging in "preserve" mode (only touches fields Spindle manages), covers
   tagfiles.py      Tag Files engine: scan, group into albums, identify, save, batch rename, cover-only
   convert.py       Convert engine: decode (ffmpeg/flac) -> encoders -> copy tags + cover; ConvertJob
+  windrive.py      Windows drives via DeviceIoControl: list, status, TOC, eject, WinDrive (RawReader:
+                   burst reads, sector re-reads, offset correction, cache flush between passes)
   naming.py        %field% templates, [optional] sections, aliases; unknown fields are never written
   metadata/        providers (MusicBrainz, GnuDB) + plugin base classes; plugins/ has a Discogs example
   coverart.py      Cover Art Archive → iTunes → Deezer (configurable order), auto-pick
@@ -65,6 +67,7 @@ python3 tests/test_tagfiles.py             # Tag Files matching, saving, rename
 python3 tests/test_imageadjust.py          # cover editor adjustments
 python3 tests/test_updater.py              # update check + install (no network)
 python3 tests/test_convert.py              # Convert: every format, tags + cover, 24-bit, safety
+python3 tests/test_windrive.py             # Windows drive logic against a fake disc (runs on Linux too)
 ruff check --select F,E9 spindle tests     # must pass
 bash -n install.sh
 ```
@@ -118,10 +121,11 @@ install without touching the real one: `HOME=$(mktemp -d) ./install.sh --no-deps
 
 ## Windows
 
-- Spindle runs on Windows too (built by GitHub Actions, see `.github/workflows/windows.yml`). Stage 1:
-  Tag Files + Convert. **Stage 2 (to do): CD ripping/playback on Windows**: a drive layer using Windows
-  IOCTLs (`disc.py`/`ripper.py` currently report no drives when `fcntl` is missing). The owner has a
-  Windows PC with a CD drive to test on.
+- Spindle runs on Windows too (built by GitHub Actions, see `.github/workflows/windows.yml`), ripping
+  included since 1.15.0: `disc.py` hands drive calls to `windrive.py` on Windows, and
+  `ripper.make_drive()` picks `WinDrive` or `ParanoiaDrive`. Windows has no tray-open status (only
+  disc / no disc). The IOCTL layer (`windrive.Device`) can only be tested on the owner's Windows PC
+  with a CD drive; everything above it is covered by `tests/test_windrive.py`.
 - Never call `subprocess` directly: use `system.run()` / `system.popen()` (they stop console windows
   flashing on Windows). Folders come from `system.config_dir()/data_dir()/cache_dir()`, never XDG or
   `~/.cache` directly.
