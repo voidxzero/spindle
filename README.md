@@ -63,6 +63,60 @@ your model in AccurateRip's drive list. If your drive isn't listed, put in any w
   short countdown; with *Eject when finished* you can feed discs in one after another.
 - **Play CDs** from the bar under the album details: gapless, with instant seeking.
 
+## How Spindle checks a rip
+
+- **AccurateRip, per track.** After each track is read, Spindle computes its AccurateRip v1 and v2
+  checksums and compares them with the database's submissions for every pressing of the disc. A match
+  shows as **Accurate (n)**, where *n* is how many other people's rips agree (the confidence). As the
+  AccurateRip method requires, the first 5 sectors of the first track and the last 5 of the last track
+  are left out of the checksum.
+- **Read offset correction**, from AccurateRip's drive list or measured with a key disc. Without it,
+  perfect rips can't match the database.
+- **Test & copy** when AccurateRip can't confirm a track (disc not in the database, or no match): the
+  track is read again and the two CRC32s compared. If they differ, Spindle keeps reading (2 extra passes
+  by default) until two reads agree. A track where no two reads agree is marked as failed.
+- **Reading.** On Linux, cdparanoia in its full secure mode (overlap checking and jitter correction),
+  with up to 20 re-reads of a bad sector. On Windows, Spindle reads the drive directly: a block that
+  fails is re-read sector by sector (up to 20 times each), and before reading a stretch a second time it
+  reads elsewhere on the disc first, so the drive's cache can't fake a test & copy match.
+- **Results you can check.** Each track ends as **Success** (an AccurateRip match, or two identical reads
+  with every sector read cleanly), **Not verified** (the reads agree but AccurateRip has a different
+  checksum) or **failed**, and *Retry failed* reads just those again. The `.log` lists, per track: copy
+  and test CRC, AccurateRip v1/v2 with confidence, peak level, corrections and the times of any
+  suspicious positions, plus the drive, read offset and settings used.
+- **Unreadable sectors are never hidden**: they're counted and logged with their positions. Two reads
+  that agree don't prove a bad spot was read right, so unless AccurateRip confirms the audio, a track
+  with unreadable sectors is marked as failed, not as a success.
+
+## Online services and privacy
+
+Spindle has no account, no telemetry and no analytics. It talks to these services, and only for these
+things:
+
+| Service | Used for | What it's sent |
+|---|---|---|
+| [MusicBrainz](https://musicbrainz.org) | Album details; disc and text search | The disc ID (from the track layout), or the artist/album you search for |
+| [GnuDB](https://gnudb.org) (FreeDB's successor) | Album details when MusicBrainz has none | The FreeDB disc ID and track positions, as user *anonymous* at host *localhost* (the protocol asks for both; you can change the user name) |
+| [AccurateRip](http://www.accuraterip.com) | Checksums to verify rips; drive offset list | The disc's AccurateRip IDs (from the track layout). Spindle only reads from AccurateRip; it never submits your rips |
+| [Cover Art Archive](https://coverartarchive.org) | Covers | The MusicBrainz release ID |
+| iTunes Search and Deezer | More covers | The artist and album name |
+| [AcoustID](https://acoustid.org) | Identifying untagged files by sound (optional) | Audio fingerprints and lengths, only if you add your own API key |
+| GitHub | Update check | Nothing beyond the request (turn it off in Settings ▸ Updates) |
+
+Every request identifies itself as *Spindle* (MusicBrainz asks apps to), and MusicBrainz is queried at
+most once a second, as its rules ask. The metadata and cover sources can be turned off or reordered in
+Settings ▸ Metadata and ▸ Cover art (AccurateRip is the verification itself, so it always runs). Plugins
+you add yourself, like the Discogs example, can contact other services. Settings and the crash log stay
+on your computer.
+
+## Your files
+
+- **Ripping** writes only to the music folder you choose; temporary files stay in your own cache folder.
+- **Tag Files** changes only the tags Spindle manages (ReplayGain, lyrics, ratings and other apps' tags
+  are kept), and shows every change, and every rename or move, before anything is written.
+- **Convert** never changes or deletes the originals, and skips files that already exist unless you
+  tick *Replace*.
+
 ## Tag Files: fix music you already have
 
 ![The Tag Files tab: an album matched on MusicBrainz, with every change shown in colour next to the old value](docs/tag-files.png)
@@ -120,7 +174,12 @@ Windows the title bar takes the skin's colours too.
 
 ## Not (yet) supported
 
-Hidden track one audio (HTOA) and pre-gap detection, and CD-Text reading.
+- Hidden track one audio (HTOA) and pre-gap detection, and CD-Text reading.
+- C2 error pointers (Spindle relies on re-reads, test & copy and AccurateRip instead).
+- Overreading into the lead-in/lead-out: with a non-zero offset, the few samples that would come from
+  outside the disc's audio are filled with silence, as in most rippers. AccurateRip's checksums leave
+  those samples out, so verification isn't affected.
+- Submitting rips to AccurateRip.
 
 ## License
 

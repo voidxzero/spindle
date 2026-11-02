@@ -69,10 +69,11 @@ def test_callback_errors_dont_break_later_tasks():
     try:
         workers.run_async(lambda: 1, on_done=bad)
         workers.run_async(lambda: 2, on_done=seen.append)
-        _pump_until(lambda: 2 in seen)
+        _pump_until(lambda: 2 in seen and "bad" in seen)
     finally:
         crashlog.write = orig
-    assert seen[0] == "bad" and any("bug in a callback" in x for x in logged), logged
+    # (tasks finish in any order; what matters is that the failing callback didn't stop the other one)
+    assert "bad" in seen and 2 in seen and any("bug in a callback" in x for x in logged), (seen, logged)
 
 
 if __name__ == "__main__":
