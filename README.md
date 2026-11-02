@@ -6,7 +6,7 @@
 
 ![Spindle after ripping a CD: album details and cover, every track verified by AccurateRip](docs/screenshot.png)
 
-An all-in-one, EAC-style secure CD ripper for Linux and Windows. Put a disc in, and Spindle reads it,
+An all-in-one secure CD ripper for Linux and Windows. Put a disc in, and Spindle reads it,
 looks it up, finds the cover, rips it securely, verifies it against AccurateRip, encodes it to as
 many formats as you like, tags everything and writes a log — in one window. It also plays CDs,
 and its **Tag Files** tab fixes tags, artwork and file names for music you already have.
@@ -100,7 +100,7 @@ rips (WAV, FLAC, OGG, MP3…); **Test** plays it (hold Shift for the problem ton
 | Secure ripping | cdparanoia with your offset; each track is checked against AccurateRip right after it's read. If AccurateRip can't confirm it, Spindle reads it again (test & copy) and re-reads more on CRC mismatch |
 | Encoding | FLAC, ALAC, WavPack, WAV, MP3 (LAME), Opus, Ogg Vorbis, AAC — several at once, encoding in parallel while the next track rips. Uses the reference encoders when installed, ffmpeg otherwise |
 | Tagging | Full tags + embedded front cover in every format, Picard-compatible MusicBrainz IDs, ReplayGain 2.0 track/album gain |
-| Extras | EAC-style `.log`, `.cue`, `.m3u8`, `cover.jpg`; single-file image + CUE mode (cue sheet also embedded in FLAC) |
+| Extras | Detailed rip `.log`, `.cue`, `.m3u8`, `cover.jpg`; single-file image + CUE mode (cue sheet also embedded in FLAC) |
 
 ## Playing CDs
 
