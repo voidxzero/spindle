@@ -202,6 +202,11 @@ Settings: `~/.config/spindle/config.json`. Program: `~/.local/share/spindle/`. T
 `~/.cache/spindle/work/` (so a music folder on a network share only receives finished files). `./uninstall.sh`
 removes the program and keeps your settings and plugins.
 
+## Versions
+
+Linux and Windows have their own version numbers and changelogs: [CHANGELOG.md](CHANGELOG.md) for
+Linux and [CHANGELOG-windows.md](CHANGELOG-windows.md) for Windows.
+
 ## Running the tests
 
 ```sh

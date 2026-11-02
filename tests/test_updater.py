@@ -158,9 +158,11 @@ def test_windows_release_check():
         {"name": "Spindle-1.14.0-portable.zip", "browser_download_url": "https://x/portable.zip"},
         {"name": "SpindleSetup-1.14.0.exe", "browser_download_url": "https://x/setup.exe"}]}
     log = "# Changelog\n\n## 1.15.0\n- not released yet\n\n## 1.14.0\n- windows\n\n## 1.13.0\n- convert\n"
+    asked = []
     with mock.patch.object(net, "get_json", return_value=rel), \
-         mock.patch.object(updater, "_raw", return_value=log):
+         mock.patch.object(updater, "_raw", lambda repo, path: asked.append(path) or log):
         info = updater.check_release("alice/spindle", "1.13.0")
+    assert asked == ["CHANGELOG-windows.md"], asked             # Windows reads its own changelog
     assert info.latest == "1.14.0" and info.available and info.download == "https://x/setup.exe"
     assert "windows" in info.notes and "not released" not in info.notes and "convert" not in info.notes, info.notes
     assert updater.windows_kind() == ""             # not the packaged Windows build
