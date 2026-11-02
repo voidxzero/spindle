@@ -25,7 +25,9 @@ class _Runnable(QRunnable):
             result = self.fn(*self.args, **self.kwargs)
         except Exception as e:  # noqa: BLE001
             msg = str(e) or e.__class__.__name__
-            traceback.print_exc()
+            from .. import crashlog
+            crashlog.write(f"Background task {getattr(self.fn, '__name__', self.fn)} failed:\n"
+                           + traceback.format_exc())
             self.signals.failed.emit(msg)
         else:
             self.signals.done.emit(result)

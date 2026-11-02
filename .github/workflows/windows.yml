@@ -80,6 +80,7 @@ jobs:
           python tests/test_updater.py
           python tests/test_convert.py
           python tests/test_windrive.py
+          python tests/test_crashlog.py
 
       - name: Build Spindle.exe
         run: |
@@ -99,7 +100,10 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: |
           $p = Start-Process dist\Spindle\Spindle.exe -ArgumentList "--selftest", "$pwd\selftest.json" -Wait -PassThru
-          Get-Content selftest.json
+          Write-Host "--- Spindle's log ---"
+          Get-Content "$env:LOCALAPPDATA\Spindle\spindle.log" -ErrorAction SilentlyContinue
+          Write-Host "--- self-test report ---"
+          Get-Content selftest.json -ErrorAction SilentlyContinue
           if ($p.ExitCode -ne 0) { throw "self-test failed (exit $($p.ExitCode))" }
 
       - name: Installer

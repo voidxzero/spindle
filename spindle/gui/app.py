@@ -24,6 +24,8 @@ def app_icon():
 
 
 def main(argv=None) -> int:
+    from .. import crashlog
+    crashed = crashlog.install()          # first: so even a crash while starting is recorded
     ap = argparse.ArgumentParser(prog="spindle")
     ap.add_argument("--simulate", action="store_true", help="add a virtual CD drive for trying things out")
     ap.add_argument("--selftest", metavar="REPORT", help=argparse.SUPPRESS)   # used by the Windows build
@@ -45,6 +47,7 @@ def main(argv=None) -> int:
     from .main_window import MainWindow
 
     app = QApplication([sys.argv[0], *qt_args])
+    crashlog.install_qt()
     app.setApplicationName(APP_NAME)
     app.setOrganizationName(APP_NAME)
     app.setDesktopFileName("spindle")
@@ -53,11 +56,78 @@ def main(argv=None) -> int:
     if args.simulate:
         os.environ.setdefault("SPINDLE_SIM_SLOW", "1")   # make the virtual drive rip at a watchable pace
     if args.selftest:
-        return selftest(app, args.selftest)
+        rc = selftest(app, args.selftest)
+        crashlog.clean_exit()
+        return rc
     win = MainWindow(simulate=args.simulate or bool(os.environ.get("SPINDLE_SIMULATE")))
     win.setWindowIcon(icon)
     win.show()
-    return app.exec()
+    if crashed:
+        _report_crash(win, crashed)
+    rc = app.exec()
+    crashlog.clean_exit()
+    return rc
+
+
+def _selftest_release_flow(app) -> dict:
+    """What happens when you pick a release: look a real disc up on MusicBrainz, apply the first match,
+    load its details and find the cover - in this build, with the real window. Network trouble is
+    recorded, not failed; a crash kills the process, which the build notices."""
+    import time
+    from .. import metadata
+    from ..disc import TOC
+    from .main_window import MainWindow
+    rep: dict = {}
+    win = MainWindow(simulate=True)
+    win.cfg["drive"]["auto_read"] = False
+    win.show()
+    toc = TOC.from_musicbrainz_toc("1 6 95462 150 15363 32314 46592 63414 80489")
+    win._show_toc(toc)
+    try:
+        found = metadata.lookup_all(win.cfg, toc)
+    except Exception as e:  # noqa: BLE001
+        rep["lookup"] = f"error: {e}"
+        win.close()
+        return rep
+    rep["lookup"] = len(found)
+    if not found:
+        win.close()
+        return rep
+    win.candidates = found
+    win._fill_release_box()
+    win._apply_candidate(found[0])
+    end = time.time() + 60
+    while time.time() < end and (win.busy or win.spinner.isVisible()):
+        app.processEvents()
+        time.sleep(0.05)
+    for _ in range(20):
+        app.processEvents()
+        time.sleep(0.05)
+    rep["album"] = f"{win.f_artist.text()} - {win.f_album.text()}"
+    rep["cover"] = bool(win.cover and win.cover.data)
+    rep["finished"] = not win.busy
+    win.close()
+    return rep
+
+
+def _report_crash(win, tail: str) -> None:
+    """The previous run ended without closing normally: say so, and where the details are."""
+    from PySide6.QtCore import QUrl
+    from PySide6.QtGui import QDesktopServices
+    from PySide6.QtWidgets import QMessageBox
+    from .. import crashlog
+    box = QMessageBox(win)
+    box.setIcon(QMessageBox.Warning)
+    box.setWindowTitle("Spindle closed unexpectedly")
+    box.setText("Spindle closed unexpectedly last time.")
+    box.setInformativeText(f"The details were saved in {crashlog.log_path()}. If it happens again, please "
+                           "send that file along with what you were doing.")
+    box.setDetailedText(tail[-4000:])
+    open_btn = box.addButton("Open log folder", QMessageBox.ActionRole)
+    box.addButton(QMessageBox.Ok)
+    box.exec()
+    if box.clickedButton() is open_btn:
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(crashlog.log_dir())))
 
 
 def selftest(app, report: str) -> int:
@@ -101,6 +171,7 @@ def selftest(app, report: str) -> int:
                 results[fmt] = f"error: {e}"
         out["convert"] = results
         out["ok"] = all(v is True for v in results.values()) and all(out["encoders"].values())
+        out["release_flow"] = _selftest_release_flow(app)
     except Exception:  # noqa: BLE001
         out["error"] = traceback.format_exc()
     with open(report, "w", encoding="utf-8") as fh:

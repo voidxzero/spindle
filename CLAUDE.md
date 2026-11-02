@@ -32,6 +32,8 @@ spindle/
   config.py        ~/.config/spindle/config.json; DEFAULTS + migrations (config_version)
   updater.py       GitHub update check (raw HEAD __init__.py + CHANGELOG) and in-place install
   net.py           urllib helper: user agent, per-host rate limits, retries
+  crashlog.py      spindle.log in the data dir: errors, Qt warnings, faulthandler for hard crashes;
+                   notices an unclean exit (Help ▸ Open log folder). Ask the owner for this file.
   system.py        platform differences: config/data/cache folders, run()/popen() (no console windows on
                    Windows), bundled tools on PATH
   cli.py           spindle-cli
@@ -68,6 +70,7 @@ python3 tests/test_imageadjust.py          # cover editor adjustments
 python3 tests/test_updater.py              # update check + install (no network)
 python3 tests/test_convert.py              # Convert: every format, tags + cover, 24-bit, safety
 python3 tests/test_windrive.py             # Windows drive logic against a fake disc (runs on Linux too)
+python3 tests/test_crashlog.py             # crash log: hard crashes + unclean-exit notice
 ruff check --select F,E9 spindle tests     # must pass
 bash -n install.sh
 ```

@@ -651,6 +651,7 @@ class MainWindow(QMainWindow):
             sk.addAction(a)
         m = mb.addMenu("&Help")
         act(m, "Check for updates…", lambda: self.check_updates(manual=True))
+        act(m, "Open log folder", self._open_log_folder)
         act(m, "About Spindle", self._about)
 
     def _build_status(self):
@@ -1598,6 +1599,10 @@ class MainWindow(QMainWindow):
             self.cfg.save()
             self.log(f"Skipping Spindle {self._update_info.latest}; Help ▸ Check for updates still offers it.")
         self.update_bar.hide()
+
+    def _open_log_folder(self):
+        from .. import crashlog
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(crashlog.log_dir())))
 
     def _about(self):
         QMessageBox.about(self, "About Spindle",
