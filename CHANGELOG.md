@@ -3,6 +3,14 @@
 Spindle for Linux has its own version numbers. Windows changes are in
 [CHANGELOG-windows.md](CHANGELOG-windows.md) (versions 1.14.0-1.15.0 below were shared with Windows).
 
+## 1.17.1
+- A track with sectors that couldn't be read is no longer marked *Success* just because two reads
+  agree (identical reads of a bad spot prove nothing); it's marked as failed unless AccurateRip
+  confirms the audio. A track AccurateRip confirms is now always a success, even if the drive had to
+  retry some sectors
+- GnuDB lookups no longer send your computer's name
+- The cover editor's picture area now uses the skin's colours instead of white
+
 ## 1.17.0
 - **Set up your drive**: if your drive's read offset isn't set yet, Spindle offers to look it up in
   AccurateRip's drive list for you (or to measure it with a key disc), at start and before a rip.

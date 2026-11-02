@@ -1,7 +1,6 @@
 """GnuDB (the freedb successor) via the CDDB-over-HTTP protocol."""
 from __future__ import annotations
 
-import socket
 
 from .. import __version__, net
 from ..disc import TOC
@@ -45,7 +44,7 @@ class GnuDB(MetadataProvider):
 
     def _cmd(self, cmd: str) -> list[str]:
         user = (self.config.get("user") or "anonymous").replace(" ", "_")
-        host = socket.gethostname() or "localhost"
+        host = "localhost"          # the protocol wants a host name; any will do, so don't share the real one
         body = net.get(URL, {"cmd": cmd, "hello": f"{user} {host} Spindle {__version__}", "proto": "6"})
         return body.decode("utf-8", "replace").splitlines()
 

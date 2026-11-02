@@ -173,6 +173,49 @@ def test_full_rip_with_windows_drive():
         assert stream.read(1) == disc.truth(0, 9)
 
 
+def test_unreadable_sector_is_not_a_success():
+    """Both test & copy passes fill the same unreadable sector with silence, so their CRCs agree;
+    without AccurateRip's confirmation that must not count as a successful rip."""
+    from spindle import encoders
+    from spindle.config import Config
+    from spindle.metadata.base import AlbumMeta, TrackMeta
+    from spindle.pipeline import RipJob, Reporter
+    toc = TOC.from_offsets([0, 300, 700], 1000)
+    disc = FakeDisc(toc, bad={420})                  # track 2 has a sector that never reads
+
+    class FakeDevice:
+        def __init__(self, device):
+            self.read = disc.read
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            pass
+
+    tmp = tempfile.mkdtemp()
+    cfg = Config(path=os.path.join(tmp, "c.json"))
+    cfg["output"].update(directory=os.path.join(tmp, "out"), formats=["flac"] if encoders.backend("flac") else ["wav"])
+    cfg["coverart"]["auto_fetch"] = False
+    cfg["drive"]["max_retries"] = 2
+    album = AlbumMeta(title="Win", artist="Dows", tracks=[TrackMeta(i, f"T{i}") for i in (1, 2, 3)])
+    with mock.patch.object(windrive, "Device", FakeDevice), \
+         mock.patch.object(windrive, "read_toc", lambda dev: toc), \
+         mock.patch.dict(os.environ, {"XDG_CACHE_HOME": tmp}), \
+         mock.patch("spindle.accuraterip.lookup", return_value=[]), \
+         mock.patch("spindle.tagger.write", lambda *a, **k: None), mock.patch("spindle.tagger.add", lambda *a, **k: None):
+        drive = windrive.WinDrive("D:", "TEST DRIVE")
+        drive.read_toc()
+        job = RipJob(cfg, drive, toc, album, [1, 2, 3], None, Reporter())
+        assert not job.run()
+    r = job.results[2]
+    assert r.test_crc == r.copy_crc and r.errors >= 1          # the two reads did agree...
+    assert not r.good and "couldn't be read" in r.verdict, r.verdict   # ...but that's not a success
+    assert job.results[1].good and job.results[3].good
+    log = open(job.log_path, encoding="utf-8").read()
+    assert "Suspicious positions" in log
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

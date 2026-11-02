@@ -274,7 +274,9 @@ class CropCanvas(QWidget):
     def paintEvent(self, _):
         p = QPainter(self)
         p.setRenderHint(QPainter.SmoothPixmapTransform)
-        p.fillRect(self.rect(), self.palette().base())
+        from .widgets import LoadingOverlay
+        skin = LoadingOverlay.skin              # skins colour via stylesheets, not the palette
+        p.fillRect(self.rect(), QColor(skin["inset"]) if skin else self.palette().base().color())
         if self.img.isNull():
             return
         sc, off = self._view()

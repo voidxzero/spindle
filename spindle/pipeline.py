@@ -189,8 +189,10 @@ class RipJob:
         res.suspicious = list(r.suspicious)
         res.wav = copy_path
         if ar_check and ar_check(res):
-            res.verdict = "Copy OK (verified by AccurateRip)"
-            res.good = res.errors == 0
+            # AccurateRip proves the audio is right, even if the drive had to retry some sectors
+            res.verdict = ("Copy OK (verified by AccurateRip)" if res.errors == 0 else
+                           "Copy OK (read errors were corrected; verified by AccurateRip)")
+            res.good = True
             return res
         if not d.get("test_and_copy", True):
             res.verdict = "Copy finished" if res.errors == 0 else "Copy finished - suspicious positions"
@@ -222,8 +224,16 @@ class RipJob:
                 os.remove(path)
         if ar_check:
             ar_check(res)   # recompute AR with the agreed copy
-        res.verdict = "Copy OK" if res.errors == 0 else "Copy OK (CRCs match, but read errors were corrected)"
-        res.good = True
+        if res.errors == 0:
+            res.verdict, res.good = "Copy OK", True
+        elif res.ar and res.ar.status == "accurate":
+            res.verdict, res.good = "Copy OK (read errors were corrected; verified by AccurateRip)", True
+        else:
+            # Both reads agree, but some sectors never read cleanly: identical reads of a bad spot
+            # (e.g. the same silence filled in twice) prove nothing, so this isn't a success.
+            res.verdict = (f"Reads agree, but {res.errors} sector(s) couldn't be read cleanly "
+                           "- may contain errors")
+            res.good = False
         return res
 
     # --------------------------------------------------------------------- run

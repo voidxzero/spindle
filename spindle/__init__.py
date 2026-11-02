@@ -7,8 +7,8 @@ first. Windows releases are GitHub Releases tagged vX.Y.Z with the Windows versi
 """
 import sys
 
-__version__ = "1.17.0"
-WINDOWS_VERSION = "1.17.0"
+__version__ = "1.17.1"
+WINDOWS_VERSION = "1.17.1"
 
 LINUX_VERSION = __version__
 if sys.platform == "win32":
