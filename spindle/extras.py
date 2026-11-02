@@ -112,7 +112,8 @@ def build_log(job) -> str:
     w.append(f"Used drive  : {job.drive.name}   Device: {job.drive.device}")
     w.append("")
     w.append(f"Ripper                      : {job.backend_name}")
-    w.append(f"Read mode                   : Secure (paranoia: {d['paranoia']})")
+    mode = getattr(job.drive, "read_mode", "") or f"Secure (paranoia: {d['paranoia']})"
+    w.append(f"Read mode                   : {mode}")
     w.append(f"Read offset correction      : {job.offset:+d}")
     w.append(f"Max retries per sector      : {d['max_retries']}")
     w.append(f"Test & copy                 : {'Yes' if d['test_and_copy'] else 'No'}")

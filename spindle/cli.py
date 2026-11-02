@@ -9,7 +9,7 @@ from .config import Config
 from .disc import list_drives
 from .metadata import AlbumMeta, complete, lookup_all
 from .pipeline import Reporter, RipJob
-from .ripper import ParanoiaDrive, SimulatedDrive
+from .ripper import SimulatedDrive, make_drive
 
 
 class ConsoleReporter(Reporter):
@@ -62,7 +62,7 @@ def main(argv=None) -> int:
             print("No optical drive found.", file=sys.stderr)
             return 2
         info = next((d for d in list_drives() if d.device == dev), None)
-        drive = ParanoiaDrive(dev, info.name if info else dev)
+        drive = make_drive(dev, info.name if info else dev)
     toc = drive.read_toc()
     print(f"{drive.name}: {len(toc.audio_tracks)} audio tracks, {toc.total_seconds / 60:.1f} min")
     print(f"MusicBrainz disc ID {toc.musicbrainz_id()}  FreeDB {toc.freedb_id():08x}")

@@ -72,6 +72,8 @@ def selftest(app, report: str) -> int:
     try:
         out["bin"] = str(system.bundled_bin() or "")
         out["encoders"] = encoders.availability()
+        from ..disc import list_drives
+        out["drives"] = [f"{d.name} ({d.device})" for d in list_drives()]   # Windows: real DeviceIoControl code
         from .main_window import MainWindow
         win = MainWindow(simulate=False)
         win.show()

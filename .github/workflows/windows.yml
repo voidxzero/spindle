@@ -79,6 +79,7 @@ jobs:
           python tests/test_imageadjust.py
           python tests/test_updater.py
           python tests/test_convert.py
+          python tests/test_windrive.py
 
       - name: Build Spindle.exe
         run: |

@@ -7,17 +7,19 @@ from __future__ import annotations
 
 import base64
 import glob
+import sys
 import hashlib
 import os
 import struct
 from dataclasses import dataclass
 
 try:
-    import fcntl                     # Linux drive access; Windows support for ripping comes later
+    import fcntl                     # Linux drive access (Windows goes through windrive.py)
 except ImportError:
     fcntl = None
 
-NOT_YET = "CD ripping isn't available on Windows yet - it's coming in a later version."
+WINDOWS = sys.platform == "win32"
+UNSUPPORTED = "CD drives aren't supported on this system."
 
 # --- linux/cdrom.h ---------------------------------------------------------
 CDROMEJECT = 0x5309
@@ -188,6 +190,9 @@ class DriveInfo:
 
 
 def list_drives() -> list[DriveInfo]:
+    if WINDOWS:
+        from . import windrive
+        return windrive.list_drives()
     if fcntl is None:
         return []
     drives = []
@@ -214,7 +219,7 @@ class DriveError(Exception):
 
 def _open(device: str) -> int:
     if fcntl is None:
-        raise DriveError(NOT_YET)
+        raise DriveError(UNSUPPORTED)
     try:
         return os.open(device, os.O_RDONLY | os.O_NONBLOCK)
     except PermissionError as e:
@@ -225,6 +230,9 @@ def _open(device: str) -> int:
 
 
 def drive_status(device: str) -> int:
+    if WINDOWS:
+        from . import windrive
+        return windrive.drive_status(device)
     try:
         fd = _open(device)
     except DriveError:
@@ -238,6 +246,9 @@ def drive_status(device: str) -> int:
 
 
 def read_toc(device: str) -> TOC:
+    if WINDOWS:
+        from . import windrive
+        return windrive.read_toc(device)
     fd = _open(device)
     try:
         try:
@@ -277,6 +288,9 @@ def read_toc(device: str) -> TOC:
 
 
 def eject(device: str, close: bool = False) -> None:
+    if WINDOWS:
+        from . import windrive
+        return windrive.eject(device, close)
     fd = _open(device)
     try:
         try:
