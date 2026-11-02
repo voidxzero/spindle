@@ -57,7 +57,7 @@ def test_identify_and_save():
     print("best:", fa.candidates[0].label(), "| runner-up:", fa.candidates[1].label())
     fa.edited.genre = "Indie"                          # a user edit
     target = tagfiles.target_path(cfg, fa, 1, organize=True)
-    assert target.endswith("Library/Real Artist/Real Album (2001)/02 - Beta.mp3"), target
+    assert target.endswith(os.path.join("Library", "Real Artist", "Real Album (2001)", "02 - Beta.mp3")), target
     tagfiles.save(cfg, fa, rename=True, organize=True)
     lib = os.path.join(tmp, "Library", "Real Artist", "Real Album (2001)")
     assert sorted(os.listdir(lib)) == ["01 - Alpha.flac", "02 - Beta.mp3", "03 - Gamma.ogg"], os.listdir(lib)

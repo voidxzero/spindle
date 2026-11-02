@@ -310,7 +310,7 @@ def target_path(cfg, fa: FileAlbum, i: int, organize: bool) -> str:
                         out.get("safe_filenames", True))
     ext = os.path.splitext(f.path)[1].lower()
     if organize:
-        return os.path.join(os.path.expanduser(out["directory"]), rel + ext)
+        return os.path.normpath(os.path.join(os.path.expanduser(out["directory"]), rel + ext))
     return os.path.join(os.path.dirname(f.path), os.path.basename(rel) + ext)
 
 

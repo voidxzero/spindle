@@ -93,6 +93,13 @@ def test_24bit_kept_for_lossless():
         it.dst = os.path.join(tmp, "o.flac")
         assert convert.convert_file(it, "flac", {}) == "ok"
         assert File(it.dst).info.bits_per_sample == 24
+        # the Windows build encodes everything with ffmpeg: 24-bit must survive that route too
+        if encoders._ffmpeg_has("wavpack"):
+            with mock.patch.object(encoders, "backend", lambda k: "copy" if k == "wav" else "ffmpeg"):
+                for fmt in ("wavpack", "flac", "alac"):
+                    it.dst = os.path.join(tmp, f"ff.{fmt}.{encoders.FORMATS[fmt].ext}")
+                    assert convert.convert_file(it, fmt, {}) == "ok"
+                    assert File(it.dst).info.bits_per_sample == 24, (fmt, File(it.dst).info.bits_per_sample)
 
 
 def test_destination_and_safety():

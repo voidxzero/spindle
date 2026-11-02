@@ -129,7 +129,9 @@ class RipJob:
         if len(self.formats) > 1 and not encoders.FORMATS[fmt].lossless:
             # keep lossy copies in their own folder tree when ripping to several formats
             rel = f"{encoders.FORMATS[fmt].label.split()[0]}/{rel}"
-        return os.path.join(os.path.expanduser(out["directory"]), rel + "." + encoders.FORMATS[fmt].ext)
+        # templates use "/" for folders; normpath turns them into "\\" on Windows
+        return os.path.normpath(os.path.join(os.path.expanduser(out["directory"]),
+                                             rel + "." + encoders.FORMATS[fmt].ext))
 
     def _tags(self, n: int | None) -> dict[str, str]:
         track = self.album.track(n) if n is not None else None

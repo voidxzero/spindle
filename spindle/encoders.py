@@ -84,6 +84,15 @@ def describe(key: str, opts: dict) -> str:
     return FORMATS[key].label
 
 
+def _wav_bits(path: str) -> int:
+    try:
+        import wave
+        with wave.open(path, "rb") as w:
+            return w.getsampwidth() * 8
+    except Exception:  # noqa: BLE001
+        return 0
+
+
 def command(key: str, opts: dict, src: str, dst: str) -> list[str] | None:
     how = backend(key)
     if how is None:
@@ -112,6 +121,8 @@ def command(key: str, opts: dict, src: str, dst: str) -> list[str] | None:
             return ["wavpack", "-q", "-y", *([mode] if mode else []), src, "-o", dst]
     # ffmpeg fallback
     c = ["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-i", src, "-map_metadata", "-1"]
+    if FORMATS[key].lossless and _wav_bits(src) == 24:
+        c += ["-bits_per_raw_sample", "24"]     # else ffmpeg's WavPack encoder stores 24-bit audio as 32-bit
     if key == "flac":
         c += ["-c:a", "flac", "-compression_level", str(opts.get("level", 8))]
     elif key == "alac":
