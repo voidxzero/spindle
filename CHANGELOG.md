@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.15.0
+- **CD ripping on Windows**: Spindle now finds your drive, reads discs, rips, plays CDs and ejects on
+  Windows, with nothing extra to install. Bad spots are re-read sector by sector; AccurateRip and
+  Test & copy check every track, as on Linux. Drive offsets are looked up by model as usual. This is
+  new, so please report anything odd (the rip log has the details)
+
 ## 1.14.2
 - Windows: no more "cdparanoia not found" message (that's a Linux tool). Spindle now says that CD
   ripping on Windows is coming in a later version

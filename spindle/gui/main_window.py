@@ -17,7 +17,7 @@ from ..config import Config
 from ..disc import CDS_DISC_OK, CDS_TRAY_OPEN, TOC, DriveError, drive_status, eject, list_drives
 from ..metadata.base import AlbumMeta, CoverCandidate
 from ..pipeline import RipJob, TrackResult
-from ..ripper import Drive, ParanoiaDrive, SimulatedDrive, find_paranoia
+from ..ripper import Drive, SimulatedDrive, can_rip, make_drive
 from .dialogs import CoverDialog, ReleaseDialog, SettingsDialog
 from .player import CDPlayer
 from .tagger_page import TaggerPage
@@ -112,14 +112,6 @@ class MainWindow(QMainWindow):
         main.setContentsMargins(0, 0, 0, 0)
         main.setSpacing(8)
         root.addWidget(main_area, 1)
-        if system.WINDOWS and not self.simulate:
-            note = QLabel("<b>CD ripping isn't available on Windows yet</b> - it's coming in a later version. "
-                          "<b>Tag Files</b> and <b>Convert</b> work fully. (Try <tt>Spindle.exe --simulate</tt> "
-                          "to see how ripping looks.)")
-            note.setWordWrap(True)
-            note.setTextFormat(Qt.RichText)
-            note.setObjectName("dim")
-            main.addWidget(note)
         main.addWidget(self._build_header())
         main.addWidget(self._build_player())
         split = QSplitter(Qt.Vertical)
@@ -140,8 +132,6 @@ class MainWindow(QMainWindow):
         self.converter = ConvertPage(self.cfg, colors(self.cfg["ui"]["theme"]), open_settings=self.settings, parent=self)
         self.converter.logged.connect(self.log)
         self.tabs.addTab(self.converter, "Convert")
-        if system.WINDOWS and not self.simulate:
-            self.tabs.setCurrentWidget(self.tagger)      # ripping comes later on Windows
         self._build_menu()
         self._build_status()
         self._bridge.message.connect(self.log)
@@ -742,9 +732,7 @@ class MainWindow(QMainWindow):
         self.log_view.appendPlainText(msg)
 
     def _check_tools(self):
-        if system.WINDOWS and not self.simulate:
-            self.log("CD ripping isn't available on Windows yet - Tag Files and Convert work fully.")
-        elif not self.simulate and not find_paranoia():
+        if not self.simulate and not can_rip():
             self.log("⚠ cdparanoia not found - install the 'cdparanoia' package to rip.")
         avail = encoders.availability()
         missing = [encoders.FORMATS[f].label for f in self.cfg["output"]["formats"] if not avail.get(f)]
@@ -813,7 +801,7 @@ class MainWindow(QMainWindow):
         if dev == "simulated":
             self.drive = SimulatedDrive(flaky_track=3)
         elif dev:
-            self.drive = ParanoiaDrive(dev, info.name if info else dev)
+            self.drive = make_drive(dev, info.name if info else dev)
             if self.cfg["drive"].get("device") != dev and len(self._drive_infos) > 1:
                 self.cfg["drive"]["device"] = dev      # remember the user's pick
                 self.cfg.save()
@@ -880,7 +868,9 @@ class MainWindow(QMainWindow):
             st = CDS_DISC_OK
         else:
             st = drive_status(self.drive.device)
-        self._set_tray_open(st == CDS_TRAY_OPEN)
+        if not (system.WINDOWS and st != CDS_DISC_OK):
+            # Windows can't tell an open tray from an empty one: keep what our own Eject/Close did
+            self._set_tray_open(st == CDS_TRAY_OPEN)
         if st == self._last_status:
             return
         prev, self._last_status = self._last_status, st
@@ -1296,11 +1286,7 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Rip", "Tick at least one track.")
             return
         self.player.stop()          # the drive can't play and rip at the same time
-        if system.WINDOWS and not self.simulate:
-            QMessageBox.information(self, "Rip", "CD ripping isn't available on Windows yet - it's coming in a "
-                                    "later version. Tag Files and Convert work fully.")
-            return
-        if not self.simulate and not find_paranoia():
+        if not self.simulate and not can_rip():
             QMessageBox.critical(self, "Rip", "cdparanoia isn't installed.\n\nInstall it with your package "
                                  "manager (e.g. sudo apt install cdparanoia) and try again.")
             return

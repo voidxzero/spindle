@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QDialog, QDia
                                QStackedWidget, QTabWidget, QTableWidget, QTableWidgetItem,
                                QVBoxLayout, QWidget)
 
-from .. import accuraterip, coverart, encoders, metadata, naming, net
+from .. import accuraterip, coverart, encoders, metadata, naming, net, system
 from ..config import DATA_DIR
 from ..updater import parse_repo as updater_parse
 from ..disc import DriveInfo, list_drives
@@ -425,10 +425,15 @@ class SettingsDialog(QDialog):
         hint.setMinimumWidth(420)   # else the form sizes the wrapped text for a narrow column: big gap
         f.addRow("", hint)
         self.paranoia = QComboBox()
-        for k, lbl in (("full", "Secure – full paranoia (recommended)"),
-                       ("no-extra", "Burst-ish – paranoia without extra verification"),
-                       ("off", "Fast – no paranoia (not recommended)")):
-            self.paranoia.addItem(lbl, k)
+        if system.WINDOWS:                 # cdparanoia's modes don't apply; one honest choice instead
+            self.paranoia.addItem("Burst with re-reads, checked by AccurateRip and Test & copy", d["paranoia"])
+            self.paranoia.setToolTip("Windows reads the disc directly. Bad sectors are re-read up to the number "
+                                     "below; AccurateRip and Test & copy confirm the result.")
+        else:
+            for k, lbl in (("full", "Secure – full paranoia (recommended)"),
+                           ("no-extra", "Burst-ish – paranoia without extra verification"),
+                           ("off", "Fast – no paranoia (not recommended)")):
+                self.paranoia.addItem(lbl, k)
         self.paranoia.setCurrentIndex(max(0, self.paranoia.findData(d["paranoia"])))
         f.addRow("Read mode", self.paranoia)
         self.retries = QSpinBox()

@@ -335,3 +335,16 @@ class SimulatedDrive(Drive):
                     threading.Event().wait(0.01)
         res.crc, res.peak = analyse(out)
         return res
+
+
+def make_drive(device: str, name: str = "") -> Drive:
+    """The right drive for this system: cdparanoia on Linux, Windows' CD-ROM interface on Windows."""
+    if system.WINDOWS:
+        from .windrive import WinDrive
+        return WinDrive(device, name)
+    return ParanoiaDrive(device, name)
+
+
+def can_rip() -> bool:
+    """Whether real discs can be ripped here (Windows needs nothing; Linux needs cdparanoia)."""
+    return system.WINDOWS or find_paranoia() is not None

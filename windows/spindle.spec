@@ -19,7 +19,7 @@ a = Analysis(
     datas=[(os.path.join(root, "spindle", "gui", "assets"), os.path.join("spindle", "gui", "assets")),
            (os.path.join(root, "plugins"), "plugins")],
     hiddenimports=["spindle.gui.app", "spindle.gui.main_window", "spindle.gui.convert_page",
-                   "spindle.gui.tagger_page", "spindle.gui.update_ui", "PySide6.QtMultimedia",
+                   "spindle.gui.tagger_page", "spindle.gui.update_ui", "spindle.windrive", "PySide6.QtMultimedia",
                    "mutagen", "mutagen.easyid3", "mutagen.easymp4"],
     excludes=["tkinter"] + [f"PySide6.{m}" for m in unused_qt],
     noarchive=False,
