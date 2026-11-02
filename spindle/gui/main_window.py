@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
                                QTableWidget, QTableWidgetItem, QTabWidget, QToolButton, QVBoxLayout,
                                QWidget)
 
-from .. import __version__, coverart, encoders, metadata, net, system
+from .. import __version__, accuraterip, coverart, encoders, metadata, net, system
 from ..config import Config
 from ..disc import CDS_DISC_OK, CDS_TRAY_OPEN, TOC, DriveError, drive_status, eject, list_drives
 from ..metadata.base import AlbumMeta, CoverCandidate
@@ -671,6 +671,9 @@ class MainWindow(QMainWindow):
     def apply_theme(self, name):
         from . import winstyle
         winstyle.apply(QApplication.instance(), THEMES.get(name))   # Windows: dark/light + title bars
+        from PySide6.QtGui import QColor
+        LoadingOverlay.skin = THEMES.get(name)                      # "Searching…" boxes in skin colours
+        Spinner.default_color = QColor(THEMES[name]["accent"]) if name in THEMES else None
         QApplication.instance().setStyleSheet(stylesheet(name))
         if hasattr(self, "check_delegate"):
             self.check_delegate.skin = THEMES.get(name)          # None -> native checkboxes
@@ -820,8 +823,79 @@ class MainWindow(QMainWindow):
         self._last_status = -1
         self._set_tray_open(False)
         self._update_status_bar()
-        if info and info.model and info.accuraterip_name not in self.cfg["drive"].get("offsets_by_model", {}):
-            self.log(f"Tip: set the read offset for {info.name} in Settings ▸ Drive (\"Look up in AccurateRip\").")
+        if info and dev != "simulated" and not self._offset_ready(info):
+            QTimer.singleShot(1200, self._maybe_offer_offset_setup)   # once the window is up
+
+    # ------------------------------------------------------------ drive offset
+    def _offset_ready(self, info) -> bool:
+        return bool(info) and info.accuraterip_name in self.cfg["drive"].get("offsets_by_model", {})
+
+    def _maybe_offer_offset_setup(self, before_rip: bool = False) -> bool:
+        """If this drive's read offset isn't set up, offer to do it. Returns False if a rip should wait."""
+        info = self._drive_info()
+        if self.simulate or not info or self._offset_ready(info) or self.busy and not before_rip:
+            return True
+        name = info.accuraterip_name
+        if name in self.cfg["drive"].get("offset_prompt_skip", []):
+            return True
+        asked = getattr(self, "_offset_asked", set())
+        if name in asked:                   # asked once this session already: don't nag (or stall auto-rip)
+            return True
+        self._offset_asked = asked | {name}
+        box = QMessageBox(self)
+        box.setIcon(QMessageBox.Information)
+        box.setWindowTitle("Set up your drive")
+        box.setText(f"<b>Spindle doesn't know the read offset of your {info.name or 'drive'} yet.</b>")
+        box.setInformativeText(
+            "Every drive model reads audio a few samples early or late. Spindle corrects for it, and without "
+            "that correction AccurateRip can't confirm that your rips are perfect. It only takes a moment, "
+            "and Spindle remembers it for this drive.")
+        b_lookup = box.addButton("Look up automatically", QMessageBox.AcceptRole)
+        b_key = box.addButton("Use a key disc…", QMessageBox.ActionRole)
+        b_rip = box.addButton("Rip anyway", QMessageBox.DestructiveRole) if before_rip else None
+        box.addButton("Not now", QMessageBox.RejectRole)
+        box.setDefaultButton(b_lookup)
+        skip = QCheckBox("Don't ask again for this drive")
+        box.setCheckBox(skip)
+        box.exec()
+        clicked = box.clickedButton()
+        if skip.isChecked():
+            self.cfg["drive"].setdefault("offset_prompt_skip", []).append(name)
+            self.cfg.save()
+        if clicked is b_lookup:
+            self._lookup_offset(info)
+        elif clicked is b_key:
+            self.settings("Drive")
+        return clicked is b_rip               # before a rip: only "Rip anyway" goes ahead now
+
+    def _lookup_offset(self, info):
+        self._working(f"Looking up {info.name} in AccurateRip's drive list…")
+
+        def done(val):
+            self._idle()
+            if val is None:
+                if QMessageBox.question(
+                        self, "Set up your drive",
+                        f"{info.accuraterip_name} isn't in AccurateRip's list of drives.\n\nYou can measure the "
+                        "offset instead: put in a well-known CD (most commercial CDs work) and use Settings ▸ Drive "
+                        "▸ Detect with a key disc.\n\nOpen Settings ▸ Drive now?") == QMessageBox.Yes:
+                    self.settings("Drive")
+                return
+            d = self.cfg["drive"]
+            d["read_offset"] = val
+            d.setdefault("offsets_by_model", {})[info.accuraterip_name] = val
+            self.cfg.save()
+            self._update_status_bar()
+            self.log(f"Read offset for {info.name}: {val:+d} samples (from AccurateRip's drive list).")
+            QMessageBox.information(self, "Set up your drive",
+                                    f"Done: your drive's read offset is <b>{val:+d}</b> samples. Spindle will "
+                                    "use it for every rip with this drive.")
+
+        def fail(msg):
+            self._idle()
+            QMessageBox.warning(self, "Set up your drive", f"Couldn't reach AccurateRip: {msg}\n\n"
+                                "Try again later from Settings ▸ Drive ▸ Look up in AccurateRip.")
+        run_async(accuraterip.detect_offset, info, on_done=done, on_error=fail)
 
     def _update_status_bar(self):
         self.st_drive.setText(self.drive.name if self.drive else "No drive")
@@ -1292,6 +1366,8 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Rip", "Tick at least one track.")
             return
         self.player.stop()          # the drive can't play and rip at the same time
+        if not self.simulate and not self._maybe_offer_offset_setup(before_rip=True):
+            return
         if not self.simulate and not can_rip():
             QMessageBox.critical(self, "Rip", "cdparanoia isn't installed.\n\nInstall it with your package "
                                  "manager (e.g. sudo apt install cdparanoia) and try again.")

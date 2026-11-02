@@ -14,3 +14,6 @@ venv/
 windows/spindle.ico
 /dist/
 /build/
+
+# logs and screenshots shared for debugging
+/logs/
