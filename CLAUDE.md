@@ -30,6 +30,8 @@ spindle/
   config.py        ~/.config/spindle/config.json; DEFAULTS + migrations (config_version)
   updater.py       GitHub update check (raw HEAD __init__.py + CHANGELOG) and in-place install
   net.py           urllib helper: user agent, per-host rate limits, retries
+  system.py        platform differences: config/data/cache folders, run()/popen() (no console windows on
+                   Windows), bundled tools on PATH
   cli.py           spindle-cli
   gui/
     app.py           entry point, app icon
@@ -47,6 +49,9 @@ spindle/
     sounds.py        finish chime / problem tone (synthesised, cached) or the user's own file
     update_ui.py     update bar, update dialog, restart
 install.sh / uninstall.sh   per-user install to ~/.local/share/spindle (venv with --system-site-packages)
+windows/                    PyInstaller spec, Inno Setup script, icon maker, launcher for the Windows build
+.github/workflows/windows.yml  builds + tests on Windows, makes SpindleSetup-x.y.z.exe + portable zip,
+                            and creates the GitHub Release for each new version pushed to main
 tests/                      plain-Python tests, no pytest needed
 ```
 
@@ -110,6 +115,23 @@ install without touching the real one: `HOME=$(mktemp -d) ./install.sh --no-deps
   previews before renaming or moving anything.
 - Writing tags: preserve mode. Only replace the fields Spindle manages, and never write unknown template
   fields literally.
+
+## Windows
+
+- Spindle runs on Windows too (built by GitHub Actions, see `.github/workflows/windows.yml`). Stage 1:
+  Tag Files + Convert. **Stage 2 (to do): CD ripping/playback on Windows**: a drive layer using Windows
+  IOCTLs (`disc.py`/`ripper.py` currently report no drives when `fcntl` is missing). The owner has a
+  Windows PC with a CD drive to test on.
+- Never call `subprocess` directly: use `system.run()` / `system.popen()` (they stop console windows
+  flashing on Windows). Folders come from `system.config_dir()/data_dir()/cache_dir()`, never XDG or
+  `~/.cache` directly.
+- Pushing a new `__version__` to main makes the workflow build and publish a Windows release
+  (`vX.Y.Z` with the setup .exe and portable zip) about 15 minutes later. The Windows updater reads the
+  latest *release*, Linux reads `__init__.py` on main. If the Windows build fails, Windows users simply
+  aren't offered that version. Check the Actions tab after pushing.
+- `Spindle.exe --selftest report.json` (hidden option) checks a packaged build end to end; CI runs it.
+- Can't test Windows locally: a Linux PyInstaller build of `windows/spindle.spec` in a clean venv
+  (PyPI packages only, not Fedora's numpy) plus `--selftest` catches most packaging mistakes.
 
 ## Gotchas
 

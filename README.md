@@ -11,6 +11,18 @@ and its **Tag Files** tab fixes tags, artwork and file names for music you alrea
 
 ## Install
 
+### Windows
+
+Download **SpindleSetup-x.y.z.exe** from the [releases page](https://github.com/voidxzero/spindle/releases/latest)
+and run it (no administrator rights needed), or take the **portable zip** and unzip it anywhere. Everything
+Spindle needs, including ffmpeg, is included. On Windows, **Tag Files** and **Convert** work fully; **CD
+ripping on Windows is coming in a later version**. Settings are kept in `%APPDATA%\Spindle`.
+
+Windows may warn that the installer is from an unknown publisher (it isn't code-signed): choose
+*More info* ▸ *Run anyway*.
+
+### Linux
+
 ```sh
 git clone https://github.com/voidxzero/spindle.git
 cd spindle

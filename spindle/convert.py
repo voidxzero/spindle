@@ -8,13 +8,11 @@ from __future__ import annotations
 import concurrent.futures as cf
 import os
 import shutil
-import subprocess
 import tempfile
 import threading
 from dataclasses import dataclass
-from pathlib import Path
 
-from . import encoders, tagger
+from . import encoders, system, tagger
 from .tagfiles import AUDIO_EXT
 
 # source extension -> format key (".m4a" is resolved by codec: ALAC or AAC)
@@ -100,7 +98,7 @@ def destination(item: Item, fmt: str, folder: str | None) -> str:
 
 def work_root() -> str:
     """Temporary WAVs live on local disk, as when ripping (the music may be on a network share)."""
-    root = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "spindle" / "work"
+    root = system.cache_dir() / "work"
     try:
         root.mkdir(parents=True, exist_ok=True)
         return str(root)
@@ -112,14 +110,14 @@ def _decode(src: str, wav: str, bits: int) -> None:
     ff = shutil.which("ffmpeg")
     if ff:
         codec = {24: "pcm_s24le", 32: "pcm_s32le"}.get(bits, "pcm_s16le")
-        p = subprocess.run([ff, "-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-i", src,
+        p = system.run([ff, "-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-i", src,
                             "-map", "0:a:0", "-vn", "-c:a", codec, "-f", "wav", wav],
                            capture_output=True, text=True, errors="replace")
         if p.returncode != 0 or not os.path.exists(wav):
             raise ConvertError("couldn't read the file: " + (p.stderr.strip()[-200:] or f"ffmpeg exit {p.returncode}"))
         return
     if src.lower().endswith(".flac") and shutil.which("flac"):
-        p = subprocess.run(["flac", "-s", "-d", "-f", "-o", wav, src], capture_output=True, text=True, errors="replace")
+        p = system.run(["flac", "-s", "-d", "-f", "-o", wav, src], capture_output=True, text=True, errors="replace")
         if p.returncode != 0:
             raise ConvertError("flac couldn't decode the file: " + p.stderr.strip()[-200:])
         return

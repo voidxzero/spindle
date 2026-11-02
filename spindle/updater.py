@@ -16,7 +16,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import __version__, net
+from . import __version__, net, system
 from .config import DATA_DIR
 
 INSTALL_INFO = DATA_DIR / "install.json"
@@ -36,10 +36,28 @@ def parse_repo(text: str) -> str:
 
 
 def install_info() -> dict:
-    try:
-        return json.loads(INSTALL_INFO.read_text())
-    except (OSError, ValueError):
-        return {}
+    """What the installer recorded (repo, version). The Windows build carries an install.json next
+    to Spindle.exe instead."""
+    paths = [INSTALL_INFO]
+    if system.FROZEN:
+        paths.insert(0, system.app_dir() / "install.json")
+    for p in paths:
+        try:
+            return json.loads(p.read_text())
+        except (OSError, ValueError):
+            continue
+    return {}
+
+
+def windows_kind() -> str:
+    """'installer' or 'portable' for the Windows build, '' otherwise."""
+    if not (system.WINDOWS and system.FROZEN):
+        return ""
+    return "installer" if any(system.app_dir().glob("unins*.exe")) else "portable"
+
+
+def can_update_itself() -> bool:
+    return installed_lib() is not None or windows_kind() == "installer"
 
 
 def repo_for(cfg) -> str:
@@ -72,15 +90,17 @@ def parse_version(init_py: str) -> str:
     return m.group(1) if m else ""
 
 
-def changes_since(changelog: str, current: str) -> str:
-    """The CHANGELOG.md sections for versions newer than `current` (Markdown)."""
+def changes_since(changelog: str, current: str, upto: str = "") -> str:
+    """The CHANGELOG.md sections for versions newer than `current` (and not newer than `upto`)."""
     out, keep = [], False
     for line in changelog.splitlines():
         m = re.match(r"^##\s+(\S+)", line)
         if m:
             ver = m.group(1)
             if re.match(r"\d", ver) and not ver.endswith(".x"):
-                keep = newer(ver, current)
+                keep = newer(ver, current) and not (upto and newer(ver, upto))
+                if not keep and upto and newer(ver, upto):
+                    continue                    # a version on GitHub that isn't released for Windows yet
             else:
                 keep = False
             if not keep and out:
@@ -96,6 +116,7 @@ class UpdateInfo:
     current: str
     latest: str
     notes: str             # Markdown
+    download: str = ""     # Windows: the setup .exe of the latest release
 
     @property
     def available(self) -> bool:
@@ -112,6 +133,8 @@ def check(repo: str, current: str = __version__) -> UpdateInfo:
     """Ask GitHub for the latest version. Raises net.HttpError when it can't be reached."""
     if not _REPO_RE.match(repo or ""):
         raise ValueError("no GitHub repository set")
+    if system.WINDOWS and system.FROZEN:
+        return check_release(repo, current)
     latest = parse_version(_raw(repo, "spindle/__init__.py"))
     if not latest:
         raise ValueError(f"{repo} doesn't look like Spindle (no version found)")
@@ -124,9 +147,57 @@ def check(repo: str, current: str = __version__) -> UpdateInfo:
     return UpdateInfo(repo, current, latest, notes)
 
 
+def check_release(repo: str, current: str = __version__) -> UpdateInfo:
+    """Windows: the newest *release* (with its built installer), not just the newest code - a version
+    pushed a few minutes ago isn't offered until its Windows build has finished."""
+    rel = net.get_json(f"https://api.github.com/repos/{repo}/releases/latest", timeout=15,
+                       headers={"Accept": "application/vnd.github+json"})
+    latest = str(rel.get("tag_name", "")).lstrip("vV")
+    if not re.match(r"\d", latest):
+        raise ValueError(f"{repo} has no Spindle release yet")
+    download = ""
+    for a in rel.get("assets", []):
+        if str(a.get("name", "")).lower() == f"spindlesetup-{latest}.exe".lower():
+            download = a.get("browser_download_url", "")
+    notes = ""
+    if newer(latest, current):
+        try:
+            notes = changes_since(_raw(repo, "CHANGELOG.md"), current, upto=latest)
+        except net.HttpError:
+            notes = rel.get("body", "") or ""
+    return UpdateInfo(repo, current, latest, notes, download)
+
+
+def releases_page(repo: str) -> str:
+    return f"https://github.com/{repo}/releases/latest"
+
+
 # --- installing -------------------------------------------------------------------------------------
 class UpdateError(Exception):
     pass
+
+
+def download_installer(info: UpdateInfo, log=lambda s: None) -> str:
+    """Windows: fetch the new SpindleSetup.exe into a temp folder and return its path."""
+    if not info.download:
+        raise UpdateError("the release has no Windows installer - download it from the releases page")
+    log(f"Downloading Spindle {info.latest}…")
+    try:
+        data = net.get(info.download, timeout=300, retries=1)
+    except net.HttpError as e:
+        raise UpdateError(f"couldn't download the update: {e}") from e
+    path = Path(tempfile.mkdtemp(prefix="spindle-update-")) / f"SpindleSetup-{info.latest}.exe"
+    path.write_bytes(data)
+    log(f"Downloaded {len(data) // (1024 * 1024)} MB.")
+    return str(path)
+
+
+def launch_installer(path: str) -> None:
+    """Run the setup silently. It waits for Spindle to close, replaces the files (settings are kept)
+    and starts the new version."""
+    flags = 0x00000008 | 0x00000200      # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP: outlive Spindle
+    subprocess.Popen([path, "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS",
+                      "/RELAUNCH"], creationflags=flags, close_fds=True)
 
 
 def _safe_extract(tar: tarfile.TarFile, dest: Path) -> None:

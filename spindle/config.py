@@ -6,8 +6,10 @@ import json
 import os
 from pathlib import Path
 
-CONFIG_DIR = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "spindle"
-DATA_DIR = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share")) / "spindle"
+from . import system
+
+CONFIG_DIR = system.config_dir()
+DATA_DIR = system.data_dir()
 CONFIG_FILE = CONFIG_DIR / "config.json"
 
 DEFAULTS: dict = {

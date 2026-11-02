@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.14.0
+- **Spindle for Windows** (first stage): a normal installer (`SpindleSetup-1.14.0.exe`) and a portable
+  zip, on the GitHub releases page. Tag Files and Convert work fully; ffmpeg is included, so nothing
+  else needs installing. CD ripping on Windows comes in a later version. Updates install themselves
+  from inside Spindle, like on Linux
+- Settings on Windows are kept in `%APPDATA%\Spindle`, so they survive updates and reinstalling
+
 ## 1.13.0
 - New **Convert** tab: turn music you already have into another format (FLAC, ALAC, WavPack, WAV, MP3,
   Opus, Ogg Vorbis, AAC). Drop in files or folders, pick a format, and save next to the originals or

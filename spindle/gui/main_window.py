@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (QAbstractItemView, QApplication, QCheckBox, QComb
                                QTableWidget, QTableWidgetItem, QTabWidget, QToolButton, QVBoxLayout,
                                QWidget)
 
-from .. import __version__, coverart, encoders, metadata, net
+from .. import __version__, coverart, encoders, metadata, net, system
 from ..config import Config
 from ..disc import CDS_DISC_OK, CDS_TRAY_OPEN, TOC, DriveError, drive_status, eject, list_drives
 from ..metadata.base import AlbumMeta, CoverCandidate
@@ -112,6 +112,14 @@ class MainWindow(QMainWindow):
         main.setContentsMargins(0, 0, 0, 0)
         main.setSpacing(8)
         root.addWidget(main_area, 1)
+        if system.WINDOWS and not self.simulate:
+            note = QLabel("<b>CD ripping isn't available on Windows yet</b> - it's coming in a later version. "
+                          "<b>Tag Files</b> and <b>Convert</b> work fully. (Try <tt>Spindle.exe --simulate</tt> "
+                          "to see how ripping looks.)")
+            note.setWordWrap(True)
+            note.setTextFormat(Qt.RichText)
+            note.setObjectName("dim")
+            main.addWidget(note)
         main.addWidget(self._build_header())
         main.addWidget(self._build_player())
         split = QSplitter(Qt.Vertical)
@@ -132,6 +140,8 @@ class MainWindow(QMainWindow):
         self.converter = ConvertPage(self.cfg, colors(self.cfg["ui"]["theme"]), open_settings=self.settings, parent=self)
         self.converter.logged.connect(self.log)
         self.tabs.addTab(self.converter, "Convert")
+        if system.WINDOWS and not self.simulate:
+            self.tabs.setCurrentWidget(self.tagger)      # ripping comes later on Windows
         self._build_menu()
         self._build_status()
         self._bridge.message.connect(self.log)

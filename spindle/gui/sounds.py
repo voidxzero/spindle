@@ -9,8 +9,10 @@ from pathlib import Path
 
 import numpy as np
 
+from .. import system
+
 RATE = 44100
-CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "spindle" / "sounds"
+CACHE = system.cache_dir() / "sounds"
 _VERSION = 1                  # bump when the synthesised sounds change, so caches are rebuilt
 
 # (frequency Hz, start s) per note
@@ -103,14 +105,23 @@ def _play_qt(path: str, volume: float) -> bool:
 
 def _play_cli(path: str, volume: float) -> bool:
     vol = max(0.0, min(1.0, volume))
+    if system.WINDOWS:
+        if path.lower().endswith(".wav"):
+            try:
+                import winsound                 # no volume control, but always there
+                winsound.PlaySound(path, winsound.SND_FILENAME | winsound.SND_ASYNC)
+                return True
+            except Exception:  # noqa: BLE001
+                return False
+        return False
     for cmd in (["pw-play", f"--volume={vol:.2f}", path],
                 ["paplay", f"--volume={int(vol * 65536)}", path],
                 ["ffplay", "-nodisp", "-autoexit", "-loglevel", "quiet", "-volume", str(int(vol * 100)), path],
                 ["aplay", "-q", path]):
         if shutil.which(cmd[0]):
             try:
-                subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                 start_new_session=True)
+                system.popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                             start_new_session=not system.WINDOWS)
                 return True
             except OSError:
                 continue

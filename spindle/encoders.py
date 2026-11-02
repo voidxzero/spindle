@@ -6,6 +6,8 @@ import shutil
 import subprocess
 from dataclasses import dataclass
 
+from . import system
+
 
 @dataclass(frozen=True)
 class Format:
@@ -39,7 +41,7 @@ def _ffmpeg_has(codec: str) -> bool:
         return False
     if not hasattr(_ffmpeg_has, "cache"):
         try:
-            out = subprocess.run([ff, "-hide_banner", "-encoders"], capture_output=True, text=True,
+            out = system.run([ff, "-hide_banner", "-encoders"], capture_output=True, text=True,
                                  timeout=10).stdout
         except (OSError, subprocess.TimeoutExpired):
             out = ""
@@ -82,6 +84,15 @@ def describe(key: str, opts: dict) -> str:
     return FORMATS[key].label
 
 
+def _wav_bits(path: str) -> int:
+    try:
+        import wave
+        with wave.open(path, "rb") as w:
+            return w.getsampwidth() * 8
+    except Exception:  # noqa: BLE001
+        return 0
+
+
 def command(key: str, opts: dict, src: str, dst: str) -> list[str] | None:
     how = backend(key)
     if how is None:
@@ -110,6 +121,8 @@ def command(key: str, opts: dict, src: str, dst: str) -> list[str] | None:
             return ["wavpack", "-q", "-y", *([mode] if mode else []), src, "-o", dst]
     # ffmpeg fallback
     c = ["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-y", "-i", src, "-map_metadata", "-1"]
+    if FORMATS[key].lossless and _wav_bits(src) == 24:
+        c += ["-bits_per_raw_sample", "24"]     # else ffmpeg's WavPack encoder stores 24-bit audio as 32-bit
     if key == "flac":
         c += ["-c:a", "flac", "-compression_level", str(opts.get("level", 8))]
     elif key == "alac":
@@ -143,7 +156,7 @@ def encode(key: str, opts: dict, src: str, dst: str) -> None:
         if cmd[0] == "ffmpeg" and FORMATS[key].ext != "m4a":
             cmd = cmd[:-1] + ["-f", {"flac": "flac", "wavpack": "wv", "mp3": "mp3", "opus": "opus",
                                      "vorbis": "ogg"}[key], tmp]
-        p = subprocess.run(cmd, capture_output=True, text=True, errors="replace")
+        p = system.run(cmd, capture_output=True, text=True, errors="replace")
         if p.returncode != 0 or not os.path.exists(tmp):
             try:
                 os.remove(tmp)

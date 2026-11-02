@@ -1,7 +1,7 @@
 """Skins: Windows XP-style chrome in dark colours, Winamp-Modern flavoured."""
 from __future__ import annotations
 
-from pathlib import Path
+from .. import system
 
 THEMES: dict[str, dict[str, str]] = {
     # Winamp "Modern", but darker: gunmetal panels, green LCD, orange accents
@@ -36,7 +36,7 @@ THEMES: dict[str, dict[str, str]] = {
 
 SYSTEM = "System"
 FONT = "'Tahoma', 'Segoe UI', 'Noto Sans', 'DejaVu Sans', sans-serif"
-MONO = "'DejaVu Sans Mono', 'Liberation Mono', 'Noto Mono', monospace"
+MONO = "'DejaVu Sans Mono', 'Liberation Mono', 'Noto Mono', 'Consolas', monospace"
 
 
 def theme_names() -> list[str]:
@@ -45,11 +45,8 @@ def theme_names() -> list[str]:
 
 def _icons(name: str, p: dict) -> dict[str, str]:
     """Write tiny SVG arrows/checkmarks in the skin's colours (Qt style sheets can't draw them)."""
-    from ..config import CONFIG_DIR
-    d = CONFIG_DIR.parent.parent / ".cache" / "spindle" / "skin" / name.replace(" ", "_")
+    d = system.cache_dir() / "skin" / name.replace(" ", "_")
     try:
-        import os
-        d = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "spindle" / "skin" / name.replace(" ", "_")
         d.mkdir(parents=True, exist_ok=True)
     except OSError:
         return {}

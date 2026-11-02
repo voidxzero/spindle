@@ -3,10 +3,9 @@ from __future__ import annotations
 
 import json
 import shutil
-import subprocess
 from collections import Counter
 
-from . import net
+from . import net, system
 
 API = "https://api.acoustid.org/v2/lookup"
 
@@ -16,7 +15,7 @@ def available() -> bool:
 
 
 def fingerprint(path: str) -> tuple[int, str]:
-    p = subprocess.run(["fpcalc", "-json", path], capture_output=True, text=True, timeout=120)
+    p = system.run(["fpcalc", "-json", path], capture_output=True, text=True, timeout=120)
     if p.returncode != 0:
         raise RuntimeError(p.stderr.strip() or "fpcalc failed")
     d = json.loads(p.stdout)

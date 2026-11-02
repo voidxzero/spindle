@@ -91,6 +91,8 @@ def make_tarball(top="alice-spindle-abc123", version="1.9.0", extra=None):
 
 
 def test_install():
+    if sys.platform == "win32":
+        return                                  # Linux updater (runs install.sh); Windows uses the setup .exe
     with tempfile.TemporaryDirectory() as home:
         lines = []
         with mock.patch.object(net, "get", fake_get({"/tar.gz/HEAD": make_tarball()})):
@@ -122,6 +124,8 @@ def test_install():
 
 def test_installer_records_repo():
     """install.sh's repository detection, run on its own against a git checkout."""
+    if sys.platform == "win32":
+        return
     root = Path(__file__).resolve().parent.parent
     script = (root / "install.sh").read_text()
     start = script.index('REPO="${SPINDLE_REPO:-}"')
@@ -146,6 +150,21 @@ def test_installer_records_repo():
                 assert '"version": "1.9.0"' in info.read_text()
             else:
                 assert not info.exists()
+
+
+def test_windows_release_check():
+    """Windows checks the latest *release* and its setup .exe; notes skip versions not released yet."""
+    rel = {"tag_name": "v1.14.0", "assets": [
+        {"name": "Spindle-1.14.0-portable.zip", "browser_download_url": "https://x/portable.zip"},
+        {"name": "SpindleSetup-1.14.0.exe", "browser_download_url": "https://x/setup.exe"}]}
+    log = "# Changelog\n\n## 1.15.0\n- not released yet\n\n## 1.14.0\n- windows\n\n## 1.13.0\n- convert\n"
+    with mock.patch.object(net, "get_json", return_value=rel), \
+         mock.patch.object(updater, "_raw", return_value=log):
+        info = updater.check_release("alice/spindle", "1.13.0")
+    assert info.latest == "1.14.0" and info.available and info.download == "https://x/setup.exe"
+    assert "windows" in info.notes and "not released" not in info.notes and "convert" not in info.notes, info.notes
+    assert updater.windows_kind() == ""             # not the packaged Windows build
+    assert updater.releases_page("alice/spindle").endswith("/alice/spindle/releases/latest")
 
 
 def sh_quote(s):

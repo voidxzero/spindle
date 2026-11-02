@@ -6,12 +6,18 @@ needed, and computes the MusicBrainz disc ID, FreeDB/GnuDB ID and AccurateRip ID
 from __future__ import annotations
 
 import base64
-import fcntl
 import glob
 import hashlib
 import os
 import struct
 from dataclasses import dataclass
+
+try:
+    import fcntl                     # Linux drive access; Windows support for ripping comes later
+except ImportError:
+    fcntl = None
+
+NOT_YET = "CD ripping isn't available on Windows yet - it's coming in a later version."
 
 # --- linux/cdrom.h ---------------------------------------------------------
 CDROMEJECT = 0x5309
@@ -182,6 +188,8 @@ class DriveInfo:
 
 
 def list_drives() -> list[DriveInfo]:
+    if fcntl is None:
+        return []
     drives = []
     for dev in sorted(glob.glob("/dev/sr[0-9]*")):
         name = os.path.basename(dev)
@@ -205,6 +213,8 @@ class DriveError(Exception):
 
 
 def _open(device: str) -> int:
+    if fcntl is None:
+        raise DriveError(NOT_YET)
     try:
         return os.open(device, os.O_RDONLY | os.O_NONBLOCK)
     except PermissionError as e:

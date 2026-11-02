@@ -927,14 +927,19 @@ class SettingsDialog(QDialog):
         self.upd_repo.setToolTip("The GitHub repository to update from, as owner/name or its URL. "
                                  "Leave empty to use the one Spindle was installed from.")
         f.addRow("GitHub repository", self.upd_repo)
-        where = updater.installed_lib()
+        kind = updater.windows_kind()
+        if kind == "portable":
+            how = ("This is the portable version: updates are downloaded from the releases page and unzipped "
+                   "over this folder (your settings are kept).")
+        elif updater.can_update_itself():
+            how = ("Updating downloads the new version, reinstalls it in place (your settings, plugins and "
+                   "drive offsets are kept) and restarts Spindle.")
+        else:
+            how = "You're running from a source folder, so update with <tt>git pull && ./install.sh</tt>."
         note = QLabel(
             (f"Installed from <b>github.com/{recorded}</b>. " if recorded else
              "The installer couldn't tell which repository this came from - type it above. ")
-            + f"You have Spindle {__version__}. "
-            + ("Updating downloads the new version, reinstalls it in place (your settings, plugins and "
-               "drive offsets are kept) and restarts Spindle." if where else
-               "You're running from a source folder, so update with <tt>git pull && ./install.sh</tt>."))
+            + f"You have Spindle {__version__}. " + how)
         note.setWordWrap(True)
         note.setTextFormat(Qt.RichText)
         note.setMinimumWidth(420)   # else the form sizes the wrapped text for a narrow column: big gap below
