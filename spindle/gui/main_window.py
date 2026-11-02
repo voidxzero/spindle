@@ -73,6 +73,9 @@ class MainWindow(QMainWindow):
         self.resize(1180, 760)
         self._build()
         self.apply_theme(self.cfg["ui"]["theme"])
+        from . import winstyle                   # Windows: the System theme follows dark/light live
+        winstyle.on_scheme_change(lambda: self.apply_theme(self.cfg["ui"]["theme"])
+                                  if self.cfg["ui"]["theme"] not in THEMES else None)
         geo = self.cfg["ui"].get("geometry")
         if geo:
             self.restoreGeometry(QByteArray.fromBase64(geo.encode()))
@@ -666,6 +669,8 @@ class MainWindow(QMainWindow):
 
     # ================================================================ helpers
     def apply_theme(self, name):
+        from . import winstyle
+        winstyle.apply(QApplication.instance(), THEMES.get(name))   # Windows: dark/light + title bars
         QApplication.instance().setStyleSheet(stylesheet(name))
         if hasattr(self, "check_delegate"):
             self.check_delegate.skin = THEMES.get(name)          # None -> native checkboxes

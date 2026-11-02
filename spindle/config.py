@@ -11,6 +11,7 @@ from . import system
 CONFIG_DIR = system.config_dir()
 DATA_DIR = system.data_dir()
 CONFIG_FILE = CONFIG_DIR / "config.json"
+DEFAULT_THEME = "Amp Classic" if system.WINDOWS else "Modern Night"   # the owner's choice per platform
 
 DEFAULTS: dict = {
     "drive": {
@@ -74,7 +75,7 @@ DEFAULTS: dict = {
         "replaygain": True,
     },
     "ui": {
-        "theme": "System",            # follow the desktop (KDE/GNOME); skins are optional
+        "theme": DEFAULT_THEME,       # Amp Classic on Windows, Modern Night on Linux; "System" follows the OS
         "geometry": "",
         "show_log": True,
     },
@@ -99,7 +100,7 @@ DEFAULTS: dict = {
         "copy_tags": True,            # tags and cover art from the original
         "overwrite": False,           # replace files that already exist (otherwise skip them)
     },
-    "config_version": 2,
+    "config_version": 3,
 }
 
 
@@ -125,6 +126,13 @@ class Config(dict):
         if data and data.get("config_version", 1) < 2:
             data.setdefault("ui", {})["theme"] = "System"   # v2: follow the desktop theme by default
             data["config_version"] = 2
+        if data and data.get("config_version", 1) < 3:
+            # v3: a skin is the default (Amp Classic / Modern Night). Installs still on System switch once;
+            # a skin someone picked is kept, and System stays available in Options ▸ Skin.
+            ui = data.setdefault("ui", {})
+            if ui.get("theme", "System") == "System":
+                ui["theme"] = DEFAULT_THEME
+            data["config_version"] = 3
         super().__init__(_merge(DEFAULTS, data))
 
     def save(self) -> None:
