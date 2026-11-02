@@ -3,6 +3,11 @@
 Spindle for Linux has its own version numbers. Windows changes are in
 [CHANGELOG-windows.md](CHANGELOG-windows.md) (versions 1.14.0-1.15.0 below were shared with Windows).
 
+## 1.16.0
+- **Modern Night** is now the default look. If you were on the System theme, Spindle switches to Modern
+  Night once after this update; a skin you picked yourself is kept. *Options ▸ Skin ▸ System* still
+  follows your desktop (KDE/GNOME, light or dark)
+
 ## 1.15.1
 - Spindle now keeps a log (`~/.local/share/spindle/spindle.log`): if it ever closes unexpectedly, it
   tells you next time and shows where the details are. **Help ▸ Open log folder** opens it

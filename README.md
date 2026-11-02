@@ -166,9 +166,11 @@ they don't mix with the lossless files.
 
 ## Look
 
-By default Spindle follows your desktop theme (Breeze on KDE, Adwaita on GNOME, light or dark).
-Prefer something retro? Options ▸ Skin has **Modern Night** (Winamp Modern, darker),
-**Luna Midnight** (Windows XP after dark), **Olive Noir** and **Amp Classic** (Winamp 2).
+Spindle starts in a retro skin: **Modern Night** (Winamp Modern, darker) on Linux and **Amp Classic**
+(Winamp 2) on Windows. Options ▸ Skin also has **Luna Midnight** (Windows XP after dark) and **Olive
+Noir**, and **System**, which follows your desktop: Breeze or Adwaita on Linux, light or dark (it
+switches when Windows does) on Windows. On Windows the title bar takes the skin's colours (Windows 11)
+or its dark/light mode (Windows 10).
 
 ## Plugins
 
@@ -218,6 +220,7 @@ python3 tests/test_updater.py     # update checks and installing (no network nee
 python3 tests/test_convert.py     # Convert tab: every format, tags + cover, 24-bit, safety
 python3 tests/test_windrive.py    # Windows drive: TOC, offsets, re-reads, cache flush, full rip (any OS)
 python3 tests/test_crashlog.py    # the log catches hard crashes and notices an unclean exit
+python3 tests/test_winstyle.py    # Windows look: title bar colours, System theme dark/light
 ```
 
 ## Requirements

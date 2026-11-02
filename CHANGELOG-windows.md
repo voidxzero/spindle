@@ -2,6 +2,14 @@
 
 Spindle for Windows has its own version numbers. Linux changes are in [CHANGELOG.md](CHANGELOG.md).
 
+## 1.16.0
+- The title bar now matches Spindle's look: it takes the skin's colours on Windows 11, and follows dark
+  or light on Windows 10. Dialogs too
+- The **System** theme follows Windows' dark or light mode, and switches straight away when you change
+  it in Windows Settings
+- **Amp Classic** is now the default look. If you were on the System theme, Spindle switches to Amp
+  Classic once after this update; a skin you picked yourself is kept (*Options ▸ Skin*)
+
 ## 1.15.1
 - Spindle now keeps a log (`%LOCALAPPDATA%\Spindle\spindle.log`): if it ever closes unexpectedly, it
   tells you next time and shows where the details are. **Help ▸ Open log folder** opens it

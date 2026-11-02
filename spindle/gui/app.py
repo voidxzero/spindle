@@ -48,6 +48,8 @@ def main(argv=None) -> int:
 
     app = QApplication([sys.argv[0], *qt_args])
     crashlog.install_qt()
+    from . import winstyle
+    winstyle.init(app)                    # Windows: title bars in the theme's colours, live dark/light
     app.setApplicationName(APP_NAME)
     app.setOrganizationName(APP_NAME)
     app.setDesktopFileName("spindle")

@@ -168,6 +168,23 @@ def test_keydisc_offset():
     assert res[0].offset == 6 and res[0].tracks_matched == 4 and res[1].offset == 36, res[:3]
 
 
+def test_default_theme_migration():
+    """v3: the default skin per platform; installs still on System switch once, chosen skins are kept."""
+    import json
+    from spindle.config import DEFAULT_THEME
+    tmp = tempfile.mkdtemp()
+    assert DEFAULT_THEME in ("Amp Classic", "Modern Night")
+    assert Config(path=os.path.join(tmp, "fresh.json"))["ui"]["theme"] == DEFAULT_THEME
+    for old, want in (("System", DEFAULT_THEME), ("Luna Midnight", "Luna Midnight")):
+        p = os.path.join(tmp, f"{old}.json")
+        json.dump({"config_version": 2, "ui": {"theme": old}}, open(p, "w"))
+        c = Config(path=p)
+        assert c["ui"]["theme"] == want and c["config_version"] == 3, (old, c["ui"]["theme"])
+        c["ui"]["theme"] = "System"           # choosing System again afterwards sticks
+        c.save()
+        assert Config(path=p)["ui"]["theme"] == "System"
+
+
 def _flaky_rip_setup():
     tmp = tempfile.mkdtemp()
     cache = tempfile.mkdtemp()

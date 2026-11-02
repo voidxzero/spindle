@@ -50,6 +50,7 @@ spindle/
     player.py        gapless CD playback (QAudioSink)
     cover_editor.py  crop/shape/rotate/trim/adjust/resize editor
     themes.py        "System" theme + skins (Modern Night, Luna Midnight, Olive Noir, Amp Classic)
+    winstyle.py      Windows: title bar colours (DWM), System theme follows dark/light (Fusion on Win10)
     icons.py         flat mono icons (System) and glossy XP-style icons (skins)
     sounds.py        finish chime / problem tone (synthesised, cached) or the user's own file
     update_ui.py     update bar, update dialog, restart
@@ -72,6 +73,7 @@ python3 tests/test_updater.py              # update check + install (no network)
 python3 tests/test_convert.py              # Convert: every format, tags + cover, 24-bit, safety
 python3 tests/test_windrive.py             # Windows drive logic against a fake disc (runs on Linux too)
 python3 tests/test_crashlog.py             # crash log: hard crashes + unclean-exit notice
+python3 tests/test_winstyle.py             # Windows look logic: title bar colours, dark/light switch
 ruff check --select F,E9 spindle tests     # must pass
 bash -n install.sh
 ```
@@ -112,9 +114,12 @@ install without touching the real one: `HOME=$(mktemp -d) ./install.sh --no-deps
 
 ## Design rules the owner has asked for (keep them)
 
-- **System theme is the default** and follows KDE/GNOME. It uses flat, monotone icons and minimal QSS.
-  The retro skins are optional and use glossy XP/Winamp-style icons. When adding a button, provide both
-  icon styles (`icons.py`).
+- **Default look: Amp Classic on Windows, Modern Night on Linux** (`config.DEFAULT_THEME`; config v3
+  moved installs that were on System to it once). The **System** theme follows KDE/GNOME, and on
+  Windows follows dark/light live (`gui/winstyle.py`); it uses flat, monotone icons and minimal QSS.
+  Skins use glossy XP/Winamp-style icons. When adding a button, provide both icon styles (`icons.py`).
+- Windows title bars stay native (snapping, caption buttons) but are coloured via DWM in
+  `gui/winstyle.py`: skin colours on Windows 11, dark/light on Windows 10, for every window.
 - Consistent sizing and spacing: line up control heights with `unify_heights`, no dead space, and fill
   the window sensibly. The owner notices spacing problems, so check layouts at small and large sizes.
 - Checkboxes are drawn by `CheckDelegate`, because QSS hid them on alternating rows in the skins. Don't go
