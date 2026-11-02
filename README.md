@@ -4,7 +4,9 @@
 > AI assistant, through many rounds of my requests, testing and feedback on real discs. I directed the
 > design and tested it; I don't claim credit for writing the code.
 
-An all-in-one, EAC-style secure CD ripper for Linux. Put a disc in, and Spindle reads it,
+![Spindle after ripping a CD: album details and cover, every track verified by AccurateRip](docs/screenshot.png)
+
+An all-in-one, EAC-style secure CD ripper for Linux and Windows. Put a disc in, and Spindle reads it,
 looks it up, finds the cover, rips it securely, verifies it against AccurateRip, encodes it to as
 many formats as you like, tags everything and writes a log — in one window. It also plays CDs,
 and its **Tag Files** tab fixes tags, artwork and file names for music you already have.
