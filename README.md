@@ -202,6 +202,11 @@ Settings: `~/.config/spindle/config.json`. Program: `~/.local/share/spindle/`. T
 `~/.cache/spindle/work/` (so a music folder on a network share only receives finished files). `./uninstall.sh`
 removes the program and keeps your settings and plugins.
 
+## Versions
+
+Linux and Windows have their own version numbers and changelogs: [CHANGELOG.md](CHANGELOG.md) for
+Linux and [CHANGELOG-windows.md](CHANGELOG-windows.md) for Windows.
+
 ## Running the tests
 
 ```sh
@@ -212,6 +217,7 @@ python3 tests/test_imageadjust.py # cover editor colour adjustments
 python3 tests/test_updater.py     # update checks and installing (no network needed)
 python3 tests/test_convert.py     # Convert tab: every format, tags + cover, 24-bit, safety
 python3 tests/test_windrive.py    # Windows drive: TOC, offsets, re-reads, cache flush, full rip (any OS)
+python3 tests/test_crashlog.py    # the log catches hard crashes and notices an unclean exit
 ```
 
 ## Requirements

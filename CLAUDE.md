@@ -14,7 +14,7 @@ its **Tag Files** tab fixes tags, artwork and file names for music the user alre
 
 ```
 spindle/
-  __init__.py      __version__ (bump on every release)
+  __init__.py      __version__ = Linux version, WINDOWS_VERSION = Windows version (see Release routine)
   disc.py          TOC via Linux cdrom ioctls, disc IDs (MusicBrainz/FreeDB/AccurateRip), drives, eject
   ripper.py        ParanoiaDrive (cdparanoia), SimulatedDrive, open_stream() for playback (CDROMREADAUDIO)
   accuraterip.py   v1/v2 checksums, dBAR lookup, drive-offset list, key-disc offset detection (frame 450)
@@ -30,8 +30,11 @@ spindle/
   coverart.py      Cover Art Archive → iTunes → Deezer (configurable order), auto-pick
   extras.py        .log (EAC-style), .cue, .m3u8, ReplayGain
   config.py        ~/.config/spindle/config.json; DEFAULTS + migrations (config_version)
-  updater.py       GitHub update check (raw HEAD __init__.py + CHANGELOG) and in-place install
+  updater.py       Linux: raw HEAD __init__.py + CHANGELOG.md, reinstall via install.sh;
+                   Windows: latest GitHub Release + CHANGELOG-windows.md, silent setup .exe
   net.py           urllib helper: user agent, per-host rate limits, retries
+  crashlog.py      spindle.log in the data dir: errors, Qt warnings, faulthandler for hard crashes;
+                   notices an unclean exit (Help ▸ Open log folder). Ask the owner for this file.
   system.py        platform differences: config/data/cache folders, run()/popen() (no console windows on
                    Windows), bundled tools on PATH
   cli.py           spindle-cli
@@ -68,6 +71,7 @@ python3 tests/test_imageadjust.py          # cover editor adjustments
 python3 tests/test_updater.py              # update check + install (no network)
 python3 tests/test_convert.py              # Convert: every format, tags + cover, 24-bit, safety
 python3 tests/test_windrive.py             # Windows drive logic against a fake disc (runs on Linux too)
+python3 tests/test_crashlog.py             # crash log: hard crashes + unclean-exit notice
 ruff check --select F,E9 spindle tests     # must pass
 bash -n install.sh
 ```
@@ -78,14 +82,22 @@ install without touching the real one: `HOME=$(mktemp -d) ./install.sh --no-deps
 ## Release routine (every change the owner asks for)
 
 1. Make the change, then run the tests and the lint check above.
-2. Bump the version in **both** `spindle/__init__.py` and `pyproject.toml`: patch for fixes and small
-   tweaks, minor for features.
-3. Add a `## x.y.z` entry at the top of `CHANGELOG.md`: short bullets, written for users. The updater
-   shows this text as "What's new", and commit messages use it.
+2. **Linux and Windows have separate versions and changelogs** (one codebase). Decide which platform(s)
+   the change affects. Shared code (most of it) = both; `windrive.py`, the Windows build, Windows-only
+   behaviour = Windows; cdparanoia/`install.sh`/Linux-only behaviour = Linux. For each affected
+   platform bump its version (patch for fixes and small tweaks, minor for features):
+   - Linux: `__version__ = "x.y.z"` in `spindle/__init__.py` **and** `pyproject.toml`. That literal line
+     must stay first and in that exact form: installed Linux copies and `install.sh` read it.
+   - Windows: `WINDOWS_VERSION = "x.y.z"` in `spindle/__init__.py`. Don't touch the other's number.
+3. Add a `## x.y.z` entry at the top of the affected changelog(s): `CHANGELOG.md` (Linux) and/or
+   `CHANGELOG-windows.md` (Windows). Short bullets, written for that platform's users. The updaters show
+   this as "What's new"; the Windows release notes come from it.
 4. Update `README.md` when behaviour or settings change. Keep the "Not (yet) supported" list honest.
 5. Commit, one commit per version:
    ```
-   Spindle x.y.z: short summary
+   Spindle x.y.z: short summary          (both at the same number)
+   Spindle for Linux x.y.z: …   /   Spindle for Windows x.y.z: …   (one platform, or different numbers:
+   "Spindle: Linux x.y.z, Windows a.b.c: …")
 
    - changelog bullets
 
@@ -94,8 +106,9 @@ install without touching the real one: `HOME=$(mktemp -d) ./install.sh --no-deps
    Only commit user-facing versions. Never make standalone commits for behind-the-scenes changes
    (CLAUDE.md, project links, helper scripts, README typo fixes and the like). Leave them uncommitted
    and they go into the next version's commit.
-6. **Don't push** unless the owner says to. They review first. The updater offers whatever version is on
-   GitHub's default branch, so pushing a higher `__version__` ships an update to every install.
+6. **Don't push** unless the owner says to. They review first. Pushing a higher `__version__` to main
+   offers that update to every Linux install; a higher `WINDOWS_VERSION` makes GitHub build and publish
+   a Windows release (tag `vX.Y.Z`, keep that tag form: installed Windows copies parse it).
 
 ## Design rules the owner has asked for (keep them)
 
@@ -132,7 +145,7 @@ install without touching the real one: `HOME=$(mktemp -d) ./install.sh --no-deps
 - Never call `subprocess` directly: use `system.run()` / `system.popen()` (they stop console windows
   flashing on Windows). Folders come from `system.config_dir()/data_dir()/cache_dir()`, never XDG or
   `~/.cache` directly.
-- Pushing a new `__version__` to main makes the workflow build and publish a Windows release
+- Pushing a new `WINDOWS_VERSION` to main makes the workflow build and publish a Windows release
   (`vX.Y.Z` with the setup .exe and portable zip) about 15 minutes later. The Windows updater reads the
   latest *release*, Linux reads `__init__.py` on main. If the Windows build fails, Windows users simply
   aren't offered that version. Check the Actions tab after pushing.

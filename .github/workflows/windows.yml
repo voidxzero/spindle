@@ -1,8 +1,10 @@
 # Builds Spindle for Windows: SpindleSetup-x.y.z.exe (installer) and a portable zip.
 # - Every push to main or the "windows" branch builds, tests, and keeps the files as a downloadable
 #   artifact (Actions tab ▸ the run ▸ Artifacts).
-# - On main, a version that hasn't been released yet becomes a GitHub Release with both files. The
-#   Windows updater offers the newest release, so pushing a new __version__ is all it takes.
+# - On main, a Windows version (WINDOWS_VERSION in spindle/__init__.py) that hasn't been released yet
+#   becomes a GitHub Release "Spindle for Windows X.Y.Z" (tag vX.Y.Z) with notes from
+#   CHANGELOG-windows.md. The Windows updater offers the newest release. Linux has its own version
+#   (__version__) and changelog (CHANGELOG.md) and isn't released here.
 name: Windows build
 
 on:
@@ -34,7 +36,8 @@ jobs:
         id: ver
         shell: pwsh
         run: |
-          $v = (Select-String -Path spindle/__init__.py -Pattern '__version__ = "(.+?)"').Matches[0].Groups[1].Value
+          $v = (Select-String -Path spindle/__init__.py -Pattern '^WINDOWS_VERSION = "(.+?)"').Matches[0].Groups[1].Value
+          if (-not $v) { throw "WINDOWS_VERSION not found in spindle/__init__.py" }
           "version=$v" >> $env:GITHUB_OUTPUT
           Write-Host "Spindle $v"
 
@@ -80,6 +83,7 @@ jobs:
           python tests/test_updater.py
           python tests/test_convert.py
           python tests/test_windrive.py
+          python tests/test_crashlog.py
 
       - name: Build Spindle.exe
         run: |
@@ -99,7 +103,10 @@ jobs:
           QT_QPA_PLATFORM: offscreen
         run: |
           $p = Start-Process dist\Spindle\Spindle.exe -ArgumentList "--selftest", "$pwd\selftest.json" -Wait -PassThru
-          Get-Content selftest.json
+          Write-Host "--- Spindle's log ---"
+          Get-Content "$env:LOCALAPPDATA\Spindle\spindle.log" -ErrorAction SilentlyContinue
+          Write-Host "--- self-test report ---"
+          Get-Content selftest.json -ErrorAction SilentlyContinue
           if ($p.ExitCode -ne 0) { throw "self-test failed (exit $($p.ExitCode))" }
 
       - name: Installer
@@ -131,8 +138,8 @@ jobs:
           $v = "${{ steps.ver.outputs.version }}"
           gh release view "v$v" *> $null
           if ($LASTEXITCODE -eq 0) { Write-Host "v$v is already released"; exit 0 }
-          # release notes = this version's section of CHANGELOG.md
-          $lines = Get-Content CHANGELOG.md -Encoding utf8
+          # release notes = this version's section of the Windows changelog
+          $lines = Get-Content CHANGELOG-windows.md -Encoding utf8
           $start = [array]::IndexOf($lines, "## $v")
           $notes = @()
           if ($start -ge 0) {
@@ -140,4 +147,4 @@ jobs:
           }
           ($notes -join "`n").Trim() | Out-File -Encoding utf8 notes.md
           gh release create "v$v" "dist\SpindleSetup-$v.exe" "dist\Spindle-$v-windows-portable.zip" `
-            --title "Spindle $v" --notes-file notes.md --target "${{ github.sha }}"
+            --title "Spindle for Windows $v" --notes-file notes.md --target "${{ github.sha }}"

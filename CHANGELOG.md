@@ -1,4 +1,12 @@
-# Changelog
+# Spindle for Linux - changelog
+
+Spindle for Linux has its own version numbers. Windows changes are in
+[CHANGELOG-windows.md](CHANGELOG-windows.md) (versions 1.14.0-1.15.0 below were shared with Windows).
+
+## 1.15.1
+- Spindle now keeps a log (`~/.local/share/spindle/spindle.log`): if it ever closes unexpectedly, it
+  tells you next time and shows where the details are. **Help ▸ Open log folder** opens it
+- Fixed a possible crash after choosing a release in the *Choose release* window
 
 ## 1.15.0
 - **CD ripping on Windows**: Spindle now finds your drive, reads discs, rips, plays CDs and ejects on

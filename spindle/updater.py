@@ -161,10 +161,11 @@ def check_release(repo: str, current: str = __version__) -> UpdateInfo:
             download = a.get("browser_download_url", "")
     notes = ""
     if newer(latest, current):
-        try:
-            notes = changes_since(_raw(repo, "CHANGELOG.md"), current, upto=latest)
+        try:                                   # Windows has its own changelog (and version numbers)
+            notes = changes_since(_raw(repo, "CHANGELOG-windows.md"), current, upto=latest)
         except net.HttpError:
-            notes = rel.get("body", "") or ""
+            pass
+        notes = notes or rel.get("body", "") or ""
     return UpdateInfo(repo, current, latest, notes, download)
 
 

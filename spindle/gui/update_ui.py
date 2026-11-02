@@ -57,6 +57,8 @@ def shut_down():
         if isinstance(w, QDialog) and w.isVisible():
             w.done(0)                         # done() skips our reject(), which would restart again
     QApplication.closeAllWindows()            # the main window saves its settings as it closes
+    from .. import crashlog
+    crashlog.clean_exit()                     # a restart for an update isn't a crash
     QApplication.quit()
     QTimer.singleShot(2000, lambda: os._exit(0))   # last resort if something still holds the process
 

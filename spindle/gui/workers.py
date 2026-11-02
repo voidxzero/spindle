@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import traceback
 
-from PySide6.QtCore import QObject, QRunnable, QThreadPool, Signal
+from PySide6.QtCore import QObject, QRunnable, QThreadPool, QTimer, Signal
 
 from ..pipeline import Reporter
 
@@ -25,7 +25,9 @@ class _Runnable(QRunnable):
             result = self.fn(*self.args, **self.kwargs)
         except Exception as e:  # noqa: BLE001
             msg = str(e) or e.__class__.__name__
-            traceback.print_exc()
+            from .. import crashlog
+            crashlog.write(f"Background task {getattr(self.fn, '__name__', self.fn)} failed:\n"
+                           + traceback.format_exc())
             self.signals.failed.emit(msg)
         else:
             self.signals.done.emit(result)
@@ -40,15 +42,24 @@ def run_async(fn, *args, on_done=None, on_error=None, **kwargs) -> None:
     sig = r.signals
     _alive.add(sig)
 
+    # Keep the messenger alive until its callback has completely finished - callbacks can open windows
+    # (Choose release…) that run for a while inside the signal - and let it go only afterwards.
+    def _release():
+        QTimer.singleShot(0, lambda: _alive.discard(sig))
+
     def _done(res):
-        _alive.discard(sig)
-        if on_done:
-            on_done(res)
+        try:
+            if on_done:
+                on_done(res)
+        finally:
+            _release()
 
     def _fail(msg):
-        _alive.discard(sig)
-        if on_error:
-            on_error(msg)
+        try:
+            if on_error:
+                on_error(msg)
+        finally:
+            _release()
     sig.done.connect(_done)
     sig.failed.connect(_fail)
     QThreadPool.globalInstance().start(r)
