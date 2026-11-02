@@ -742,7 +742,9 @@ class MainWindow(QMainWindow):
         self.log_view.appendPlainText(msg)
 
     def _check_tools(self):
-        if not self.simulate and not find_paranoia():
+        if system.WINDOWS and not self.simulate:
+            self.log("CD ripping isn't available on Windows yet - Tag Files and Convert work fully.")
+        elif not self.simulate and not find_paranoia():
             self.log("⚠ cdparanoia not found - install the 'cdparanoia' package to rip.")
         avail = encoders.availability()
         missing = [encoders.FORMATS[f].label for f in self.cfg["output"]["formats"] if not avail.get(f)]
@@ -1294,6 +1296,10 @@ class MainWindow(QMainWindow):
             QMessageBox.information(self, "Rip", "Tick at least one track.")
             return
         self.player.stop()          # the drive can't play and rip at the same time
+        if system.WINDOWS and not self.simulate:
+            QMessageBox.information(self, "Rip", "CD ripping isn't available on Windows yet - it's coming in a "
+                                    "later version. Tag Files and Convert work fully.")
+            return
         if not self.simulate and not find_paranoia():
             QMessageBox.critical(self, "Rip", "cdparanoia isn't installed.\n\nInstall it with your package "
                                  "manager (e.g. sudo apt install cdparanoia) and try again.")
@@ -1609,7 +1615,7 @@ class MainWindow(QMainWindow):
 
     def _about(self):
         QMessageBox.about(self, "About Spindle",
-                          f"<h3>Spindle {__version__}</h3><p>Secure CD ripping for Linux: cdparanoia extraction "
+                          f"<h3>Spindle {__version__}</h3><p>Secure CD ripping (cdparanoia extraction on Linux) "
                           "with AccurateRip verification and test &amp; copy, MusicBrainz / GnuDB / plugin metadata, "
                           "automatic cover art, and FLAC, ALAC, WavPack, MP3, Opus, Vorbis and AAC output.</p>"
                           "<p>Metadata © MusicBrainz contributors (CC0). Verification data from AccurateRip.</p>")

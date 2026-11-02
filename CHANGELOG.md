@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.14.2
+- Windows: no more "cdparanoia not found" message (that's a Linux tool). Spindle now says that CD
+  ripping on Windows is coming in a later version
+
 ## 1.14.1
 - Fixed several Spindle windows opening after an update: the old window now closes properly when
   Spindle restarts, and pressing *Restart now* more than once only starts one new Spindle
