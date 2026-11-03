@@ -2,6 +2,11 @@
 
 Spindle for Windows has its own version numbers. Linux changes are in [CHANGELOG.md](CHANGELOG.md).
 
+## 1.18.0
+- Five new skins in the style of classic Y2K media players (*Options ▸ Skin*): **Aqua Deck** (teal),
+  **Ice Blue** (glossy blue), **Chrome Deck** (brushed silver with a blue display), **Emerald Core**
+  (black and neon green) and **Classic 98** (the grey Windows 98 look)
+
 ## 1.17.2
 - Fixed a crash while loading release details after choosing a release ("heap corruption" on
   Windows): Python's memory clean-up could run on a background thread and free parts of a window

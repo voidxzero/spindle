@@ -133,8 +133,9 @@ def titlebar_colors() -> tuple[bool, str | None, str | None, str | None]:
     """(dark, caption, text, border) for the current theme."""
     skin = _State.theme_colors
     if skin:
-        caption = skin.get("title_top") or skin.get("panel_top") or skin.get("bg")
-        return QColor(skin.get("bg", "#000")).lightness() < 128, caption, skin.get("text"), skin.get("border")
+        caption = skin.get("caption") or skin.get("title_top") or skin.get("panel_top") or skin.get("bg")
+        text = "#ffffff" if QColor(caption).lightness() < 140 else "#000000"     # readable on the caption
+        return QColor(skin.get("bg", "#000")).lightness() < 128, caption, text, skin.get("border")
     pal = QApplication.palette()
     dark = pal.color(QPalette.Window).lightness() < 128
     return dark, pal.color(QPalette.Window).name(), pal.color(QPalette.WindowText).name(), None

@@ -32,6 +32,41 @@ THEMES: dict[str, dict[str, str]] = {
         lcd_bg="#000000", lcd_fg="#00e639", lcd_dim="#0a4d18", sel="#2b4f9e", sel_text="#ffffff",
         title_top="#4b4b6e", title_bot="#25253a", btn_top="#4a4a62", btn_bot="#2a2a3a",
         good="#00e639", warn="#e8c440", bad="#ff4040", alt="#121218"),
+    # Teal Winamp skin: aquamarine panels, cyan LCD
+    "Aqua Deck": dict(
+        bg="#0b2a2f", panel_top="#2f8f98", panel_bot="#1b5b64", inset="#062027", border="#3fb0b8",
+        hilite="#8ff0f0", text="#e8fdff", dim="#9fd3d6", accent="#5ff2e4", accent_text="#03231f",
+        lcd_bg="#031b1d", lcd_fg="#55f5dc", lcd_dim="#155a55", sel="#23a7b2", sel_text="#ffffff",
+        title_top="#38a3ad", title_bot="#1d6670", btn_top="#3a9da6", btn_bot="#1f6870",
+        good="#7dffb0", warn="#ffd86b", bad="#ff7b7b", alt="#0a262c"),
+    # Glossy bright-blue player and equaliser
+    "Ice Blue": dict(
+        bg="#05244f", panel_top="#2f8de6", panel_bot="#1556ae", inset="#03183a", border="#53b3ff",
+        hilite="#b5e2ff", text="#eef8ff", dim="#a3cbf0", accent="#86e6ff", accent_text="#03203b",
+        lcd_bg="#021029", lcd_fg="#86e6ff", lcd_dim="#1d4d7c", sel="#3aa0ff", sel_text="#ffffff",
+        title_top="#4aa8ff", title_bot="#1b62c4", btn_top="#3c9af0", btn_bot="#1a5cb4",
+        good="#86f5ae", warn="#ffd86b", bad="#ff7f7f", alt="#041d43"),
+    # Brushed-silver chrome with a deep-blue LCD (a light skin)
+    "Chrome Deck": dict(
+        bg="#8f98a3", panel_top="#eef1f4", panel_bot="#bcc4cd", inset="#f7f9fb", border="#7a8491",
+        hilite="#ffffff", text="#16202d", dim="#4d5866", accent="#2a6ad8", accent_text="#ffffff",
+        lcd_bg="#0a1d47", lcd_fg="#8fd2ff", lcd_dim="#264a84", sel="#2a6ad8", sel_text="#ffffff",
+        title_top="#dfe4ea", title_bot="#aeb7c1", btn_top="#f4f6f8", btn_bot="#c4cbd3",
+        good="#16834a", warn="#a8670e", bad="#cc2b2b", alt="#edf0f3", caption="#c9d0d8"),
+    # Black console with a neon-green core
+    "Emerald Core": dict(
+        bg="#040705", panel_top="#1d2820", panel_bot="#0f1611", inset="#020403", border="#2d5a36",
+        hilite="#4f8f5a", text="#dcf8df", dim="#80a886", accent="#3dff6e", accent_text="#02130a",
+        lcd_bg="#010a03", lcd_fg="#4dff7a", lcd_dim="#155a27", sel="#1f7a3b", sel_text="#ffffff",
+        title_top="#29382c", title_bot="#131b15", btn_top="#28362b", btn_bot="#131a15",
+        good="#4dff7a", warn="#e8d24a", bad="#ff5a5a", alt="#090f0b"),
+    # Windows 98 CD Player: grey 3D panels, navy title bars (a light skin)
+    "Classic 98": dict(
+        bg="#c0c0c0", panel_top="#d6d3ce", panel_bot="#c0c0c0", inset="#ffffff", border="#808080",
+        hilite="#ffffff", text="#000000", dim="#555555", accent="#000080", accent_text="#ffffff",
+        lcd_bg="#000000", lcd_fg="#00e000", lcd_dim="#1c4a1c", sel="#000080", sel_text="#ffffff",
+        title_top="#d4d0c8", title_bot="#bdbab3", btn_top="#e3e1dc", btn_bot="#c0c0c0",
+        good="#007a00", warn="#8a6100", bad="#c00000", alt="#f2f2f2", caption="#000080"),
 }
 
 SYSTEM = "System"
