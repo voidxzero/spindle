@@ -2,7 +2,7 @@
 
 > **Made with Claude.** The code in this project was written by [Claude](https://claude.ai), Anthropic's
 > AI assistant, through many rounds of my requests, testing and feedback on real discs. I directed the
-> design and tested it; I don't claim credit for writing the code.
+> design and tested it; I don't claim credit for writing the code. I vehemently oppose AI slop.
 
 ![Spindle after ripping a CD: album details and cover, every track verified by AccurateRip](docs/screenshot.png)
 
@@ -158,6 +158,11 @@ Spindle starts in **Modern Night** on Linux and **Amp Classic** on Windows. *Opt
 skins in the style of classic media players, from the dark **Luna Midnight** and neon **Emerald Core**
 to the silver **Chrome Deck** and grey **Classic 98**, plus **System**, which follows your desktop's
 light or dark theme. On Windows the title bar takes the skin's colours too.
+
+**More skins:** *Settings ▸ Appearance ▸ Import skin…* adds a skin someone shared. Skins are small
+`.json` files with colours and a few settings (never code), so they're safe to share. To make your own,
+pick a skin and choose **Save a copy to edit…**; [skins/README.md](skins/README.md) explains every
+setting, and the skins in [skins/](skins) ship with Spindle.
 
 ## More
 

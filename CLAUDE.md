@@ -51,7 +51,15 @@ spindle/
     cover_editor.py  crop/shape/rotate/trim/adjust/resize editor
     themes.py        "System" theme + skins (Modern Night, Luna Midnight, Olive Noir, Amp Classic, Aqua Deck,
                      Ice Blue, Chrome Deck, Emerald Core, Classic 98). A skin is a palette; light skins work
-                     (Chrome Deck, Classic 98). Optional "caption" = Windows title bar colour
+                     (Chrome Deck, Classic 98). Optional "caption" = Windows title bar colour; corner
+                     radii (r, r_panel, r_rail, r_small, r_knob), font and font_size are per skin.
+                     style="classic98" adds CLASSIC98_QSS + pixel-exact bevel images (_classic98_assets),
+                     Win98 icons (icons.make_classic), 98 check boxes (CheckDelegate) and loading box.
+                     On Windows skins sit on the Fusion style (native Win11 style rounds/ignores QSS).
+                     Skin FILES: skins/*.json in the repo ship with Spindle (install.sh -> lib/skins,
+                     PyInstaller datas); imported ones live in <data dir>/skins. parse_skin() validates
+                     everything (colours, corners, font, style) - skins must never be able to run code.
+                     Format documented in skins/README.md; the owner adds skins there
     winstyle.py      Windows: title bar colours (DWM), System theme follows dark/light (Fusion on Win10)
     icons.py         flat mono icons (System) and glossy XP-style icons (skins)
     sounds.py        finish chime / problem tone (synthesised, cached) or the user's own file
@@ -77,6 +85,7 @@ python3 tests/test_windrive.py             # Windows drive logic against a fake 
 python3 tests/test_crashlog.py             # crash log: hard crashes + unclean-exit notice
 python3 tests/test_winstyle.py             # Windows look logic: title bar colours, dark/light switch
 python3 tests/test_workers.py              # background tasks: results exactly once, nested dialogs + GC
+python3 tests/test_skins.py                # skin files: bundled load, validation, import/export
 ruff check --select F,E9 spindle tests     # must pass
 bash -n install.sh
 ```

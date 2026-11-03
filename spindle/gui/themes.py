@@ -1,6 +1,8 @@
 """Skins: Windows XP-style chrome in dark colours, Winamp-Modern flavoured."""
 from __future__ import annotations
 
+from pathlib import Path
+
 from .. import system
 
 THEMES: dict[str, dict[str, str]] = {
@@ -66,7 +68,10 @@ THEMES: dict[str, dict[str, str]] = {
         hilite="#ffffff", text="#000000", dim="#555555", accent="#000080", accent_text="#ffffff",
         lcd_bg="#000000", lcd_fg="#00e000", lcd_dim="#1c4a1c", sel="#000080", sel_text="#ffffff",
         title_top="#d4d0c8", title_bot="#bdbab3", btn_top="#e3e1dc", btn_bot="#c0c0c0",
-        good="#007a00", warn="#8a6100", bad="#c00000", alt="#f2f2f2", caption="#000080"),
+        good="#007a00", warn="#8a6100", bad="#c00000", alt="#f2f2f2", caption="#000080",
+        style="classic98", r_panel="0px", r_rail="0px", r="0px", r_small="0px", r_knob="0px",
+        font="'Microsoft Sans Serif', 'MS Sans Serif', Tahoma, 'Liberation Sans', 'DejaVu Sans', sans-serif",
+        font_size="8pt"),
 }
 
 SYSTEM = "System"
@@ -126,6 +131,179 @@ def _icons(name: str, p: dict) -> dict[str, str]:
     return out
 
 
+# --- Classic 98: real Windows 98 elements --------------------------------------------------------------
+# Windows 98's 3D look is two-pixel bevels: white and light grey on the top/left, dark grey and black on
+# the bottom/right (reversed for sunken fields and pressed buttons), square corners, flat grey. Qt style
+# sheets can't draw two-tone borders, so the bevels are tiny pixel-exact images used as border-images.
+W98 = {"face": "#c0c0c0", "light": "#dfdfdf", "white": "#ffffff", "shadow": "#808080", "dark": "#000000"}
+
+
+def _px(x, y, w, h, c):
+    return f'<rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{c}"/>'
+
+
+def _bevel(size, outer_tl, inner_tl, outer_br, inner_br, face, frame=None):
+    """A size x size image: two-pixel bevel around a face, optionally inside a 1px frame."""
+    o = 1 if frame else 0
+    n = size - 2 * o
+    b = [_px(0, 0, size, size, frame)] if frame else []
+    b.append(_px(o, o, n, n, face))
+    b += [_px(o, o, n - 1, 1, outer_tl), _px(o, o, 1, n - 1, outer_tl),                       # outer top/left
+          _px(o, o + n - 1, n, 1, outer_br), _px(o + n - 1, o, 1, n, outer_br),               # outer bottom/right
+          _px(o + 1, o + 1, n - 3, 1, inner_tl), _px(o + 1, o + 1, 1, n - 3, inner_tl),       # inner top/left
+          _px(o + 1, o + n - 2, n - 2, 1, inner_br), _px(o + n - 2, o + 1, 1, n - 2, inner_br)]  # inner bottom/right
+    return b
+
+
+def _classic98_assets(d) -> dict[str, str]:
+    """Write the Windows 98 bevels, check boxes, radio buttons, arrows, slider thumb and the dithered
+    scroll-bar track; returns {name: path}."""
+    c = W98
+    svgs = {
+        "raised": (6, 6, _bevel(6, c["white"], c["light"], c["dark"], c["shadow"], c["face"])),
+        "pressed": (6, 6, _bevel(6, c["dark"], c["shadow"], c["white"], c["light"], c["face"])),
+        "default": (8, 8, _bevel(8, c["white"], c["light"], c["dark"], c["shadow"], c["face"], frame=c["dark"])),
+        "sunken": (6, 6, _bevel(6, c["shadow"], c["dark"], c["white"], c["light"], c["white"])),
+        "sunken_face": (6, 6, _bevel(6, c["shadow"], c["dark"], c["white"], c["light"], c["face"])),
+        "dither": (2, 2, [_px(0, 0, 2, 2, c["face"]), _px(0, 0, 1, 1, c["white"]), _px(1, 1, 1, 1, c["white"])]),
+    }
+    tick = ('<path d="M3 6 L5 8 L10 3 L10 5 L5 10 L3 8 Z" fill="{t}"/>')
+    for key, face, mark in (("cb_off", c["white"], None), ("cb_on", c["white"], c["dark"]),
+                            ("cb_off_dis", c["face"], None), ("cb_on_dis", c["face"], c["shadow"])):
+        svgs[key] = (13, 13, _bevel(13, c["shadow"], c["dark"], c["white"], c["light"], face)
+                     + ([tick.format(t=mark)] if mark else []))
+    # radio: a sunken circle (half-rings in the bevel colours) with an optional black dot
+    ring = ('<path d="M10.2 1.8 A6 6 0 0 0 1.8 10.2" fill="none" stroke="{a}" stroke-width="1"/>'
+            '<path d="M10.2 1.8 A6 6 0 0 1 1.8 10.2" fill="none" stroke="{b}" stroke-width="1"/>')
+    for key, dot in (("rb_off", False), ("rb_on", True)):
+        svgs[key] = (12, 12, ['<circle cx="6" cy="6" r="5" fill="#ffffff"/>',
+                              ring.format(a=c["shadow"], b=c["white"]).replace("A6 6", "A6 6"),
+                              '<g transform="translate(1 1) scale(0.8333)">' + ring.format(a=c["dark"], b=c["light"]) + "</g>"]
+                     + (['<rect x="4" y="4" width="4" height="4" fill="#000000"/>'] if dot else []))
+    for key, pts in (("a_down", "0,0 7,0 3.5,4"), ("a_up", "3.5,0 7,4 0,4"),
+                     ("a_left", "4,0 4,7 0,3.5"), ("a_right", "0,0 4,3.5 0,7")):
+        w, h = (7, 4) if key in ("a_down", "a_up") else (4, 7)
+        svgs[key] = (w, h, [f'<polygon points="{pts}" fill="#000000"/>'])
+        svgs[key + "_dis"] = (w, h, [f'<polygon points="{pts}" fill="{c["shadow"]}"/>'])
+    # the trackbar thumb: a raised pentagon pointing down
+    svgs["thumb"] = (11, 21, [
+        '<polygon points="0,0 10,0 10,15 5,20 0,15" fill="#c0c0c0"/>',
+        '<polyline points="0.5,15 0.5,0.5 9.5,0.5" fill="none" stroke="#ffffff"/>',
+        '<polyline points="1.5,15 1.5,1.5 8.5,1.5" fill="none" stroke="#dfdfdf"/>',
+        '<polyline points="10.5,0 10.5,15.2 5.2,20.5" fill="none" stroke="#000000"/>',
+        '<polyline points="9.5,1 9.5,14.8 5,19.3" fill="none" stroke="#808080"/>',
+        '<line x1="0.5" y1="15" x2="5" y2="19.5" stroke="#ffffff"/>'])
+    out = {}
+    for key, (w, h, body) in svgs.items():
+        f = d / f"w98_{key}.svg"
+        try:
+            f.write_text(f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" viewBox="0 0 {w} {h}" '
+                         f'shape-rendering="crispEdges">{"".join(body)}</svg>')
+        except OSError:
+            continue
+        out[key] = str(f).replace("\\", "/")
+    return out
+
+
+CLASSIC98_QSS = """
+/* ---- Classic 98: square, flat grey, two-pixel bevels ---- */
+QFrame#panel, QFrame#rail, QFrame#header { background: #c0c0c0; border: 1px solid;
+    border-color: #ffffff #808080 #808080 #ffffff; border-radius: 0px; }
+QLabel#railTitle { color: #000080; letter-spacing: 0px; }
+QToolTip { background: #ffffe1; color: #000000; border: 1px solid #000000; padding: 2px; }
+
+QPushButton, QToolButton { background: transparent; border-width: 2px; border-style: solid;
+    border-image: url("%(raised)s") 2 2 2 2 stretch stretch; color: #000000; padding: 1px 10px; }
+QPushButton:hover, QToolButton:hover { border-image: url("%(raised)s") 2 2 2 2 stretch stretch; }
+QPushButton:pressed, QToolButton:pressed, QToolButton:checked {
+    border-image: url("%(pressed)s") 2 2 2 2 stretch stretch; padding: 2px 9px 0px 11px; }
+QPushButton:disabled, QToolButton:disabled { color: #808080; }
+QPushButton#primary, QToolButton#primary, QToolButton#railButton[accent="true"] { background: transparent;
+    color: #000000; font-weight: bold; border-width: 3px; border-image: url("%(default)s") 3 3 3 3 stretch stretch; }
+QPushButton#primary:disabled, QToolButton#primary:disabled, QToolButton#railButton[accent="true"]:disabled {
+    background: transparent; color: #808080; }
+QToolButton#railButton { padding: 2px; }
+
+QLineEdit, QSpinBox, QComboBox, QPlainTextEdit, QTextEdit, QListWidget, QTableWidget, QTableView {
+    background: #ffffff; border-width: 2px; border-style: solid;
+    border-image: url("%(sunken)s") 2 2 2 2 stretch stretch; border-radius: 0px; }
+QLineEdit:focus, QSpinBox:focus, QComboBox:focus, QListWidget:focus { border-image: url("%(sunken)s") 2 2 2 2 stretch stretch; }
+QLineEdit:disabled, QSpinBox:disabled, QComboBox:disabled { background: #c0c0c0; }
+QComboBox::drop-down { width: 16px; border-width: 2px; border-style: solid;
+    border-image: url("%(raised)s") 2 2 2 2 stretch stretch; }
+QComboBox::down-arrow { image: url("%(a_down)s"); width: 7px; height: 4px; }
+QComboBox::down-arrow:disabled { image: url("%(a_down_dis)s"); }
+QComboBox QAbstractItemView { background: #ffffff; border: 1px solid #000000; selection-background-color: #000080;
+    selection-color: #ffffff; }
+QSpinBox::up-button, QSpinBox::down-button { width: 16px; background: transparent; border-width: 2px;
+    border-style: solid; border-image: url("%(raised)s") 2 2 2 2 stretch stretch; }
+QSpinBox::up-button:pressed, QSpinBox::down-button:pressed { border-image: url("%(pressed)s") 2 2 2 2 stretch stretch; }
+QSpinBox::up-arrow { image: url("%(a_up)s"); width: 7px; height: 4px; }
+QSpinBox::down-arrow { image: url("%(a_down)s"); width: 7px; height: 4px; }
+QPlainTextEdit#log { background: #000000; border-image: none; border: 2px solid;
+    border-color: #808080 #ffffff #ffffff #808080; }
+QLabel#lcd, QLabel#lcdBig, QLabel#cover { border: 2px solid; border-color: #808080 #ffffff #ffffff #808080;
+    border-radius: 0px; }
+QLabel#cover:hover { border-color: #808080 #ffffff #ffffff #808080; }
+
+QHeaderView::section { background: transparent; color: #000000; padding: 1px 6px; border-width: 2px;
+    border-style: solid; border-image: url("%(raised)s") 2 2 2 2 stretch stretch; }
+QTableWidget, QTableView { gridline-color: #c0c0c0; alternate-background-color: #ffffff; }
+
+QGroupBox { background: transparent; border: 2px groove #c0c0c0; border-radius: 0px; margin-top: 14px; }
+QGroupBox::title { background: #c0c0c0; color: #000000; border: none; font-weight: normal; padding: 0px 3px; }
+
+QTabWidget::pane { border: 1px solid; border-color: #ffffff #000000 #000000 #ffffff; background: #c0c0c0;
+    border-radius: 0px; top: -1px; }
+QTabBar::tab { background: #c0c0c0; color: #000000; border: 1px solid; border-color: #ffffff #000000 #c0c0c0 #ffffff;
+    border-bottom: none; padding: 3px 10px; margin-top: 2px; margin-right: 0px; border-radius: 0px; }
+QTabBar::tab:selected { margin-top: 0px; padding-bottom: 5px; border-top: 1px solid #ffffff; color: #000000; }
+
+QProgressBar { background: #ffffff; color: transparent; border-width: 2px; border-style: solid;
+    border-image: url("%(sunken)s") 2 2 2 2 stretch stretch; border-radius: 0px; }
+QProgressBar::chunk { background: #000080; width: 8px; margin: 1px; border-radius: 0px; }
+
+QMenuBar { background: #c0c0c0; border: none; }
+QMenuBar::item:selected { background: #000080; color: #ffffff; border-radius: 0px; }
+QMenu { background: #c0c0c0; border-width: 2px; border-style: solid;
+    border-image: url("%(raised)s") 2 2 2 2 stretch stretch; padding: 1px; }
+QMenu::item { padding: 3px 22px 3px 20px; border-radius: 0px; }
+QMenu::item:selected { background: #000080; color: #ffffff; }
+QMenu::separator { height: 2px; margin: 3px 2px; border-top: 1px solid #808080; border-bottom: 1px solid #ffffff; }
+QStatusBar { background: #c0c0c0; }
+QStatusBar::item { border: 1px solid; border-color: #808080 #ffffff #ffffff #808080; }
+
+QCheckBox::indicator, QTableView::indicator, QTableWidget::indicator, QListView::indicator,
+QListWidget::indicator, QTreeView::indicator { width: 13px; height: 13px; }
+QCheckBox::indicator:unchecked:hover, QTableView::indicator:unchecked:hover, QTableWidget::indicator:unchecked:hover,
+QListView::indicator:unchecked:hover, QListWidget::indicator:unchecked:hover, QTreeView::indicator:unchecked:hover { image: url("%(cb_off)s"); }
+QRadioButton::indicator { width: 12px; height: 12px; }
+QRadioButton::indicator:unchecked:hover { image: url("%(rb_off)s"); }
+
+QSlider::groove:horizontal { height: 2px; background: #c0c0c0; border: 2px solid;
+    border-color: #808080 #ffffff #ffffff #808080; border-radius: 0px; }
+QSlider::sub-page:horizontal { background: transparent; border-radius: 0px; }
+QSlider::handle:horizontal { image: url("%(thumb)s"); width: 11px; height: 21px; margin: -10px 0px;
+    border: none; background: transparent; border-radius: 0px; }
+
+QScrollBar:vertical { background: url("%(dither)s"); width: 16px; margin: 16px 0px 16px 0px; }
+QScrollBar:horizontal { background: url("%(dither)s"); height: 16px; margin: 0px 16px 0px 16px; }
+QScrollBar::handle { background: #c0c0c0; border-width: 2px; border-style: solid; border-radius: 0px;
+    border-image: url("%(raised)s") 2 2 2 2 stretch stretch; min-height: 16px; min-width: 16px; }
+QScrollBar::add-line, QScrollBar::sub-line { background: #c0c0c0; border-width: 2px; border-style: solid;
+    border-image: url("%(raised)s") 2 2 2 2 stretch stretch; subcontrol-origin: margin; }
+QScrollBar::add-line:vertical { height: 16px; subcontrol-position: bottom; }
+QScrollBar::sub-line:vertical { height: 16px; subcontrol-position: top; }
+QScrollBar::add-line:horizontal { width: 16px; subcontrol-position: right; }
+QScrollBar::sub-line:horizontal { width: 16px; subcontrol-position: left; }
+QScrollBar::up-arrow:vertical { image: url("%(a_up)s"); width: 7px; height: 4px; }
+QScrollBar::down-arrow:vertical { image: url("%(a_down)s"); width: 7px; height: 4px; }
+QScrollBar::left-arrow:horizontal { image: url("%(a_left)s"); width: 4px; height: 7px; }
+QScrollBar::right-arrow:horizontal { image: url("%(a_right)s"); width: 4px; height: 7px; }
+QSplitter::handle { background: #c0c0c0; }
+"""
+
+
 SYSTEM_QSS = """
 QLabel#lcdBig { font-family: %(MONO)s; font-size: 11pt; font-weight: bold; padding: 0px 10px;
     border: 1px solid palette(mid); border-radius: 4px; background: palette(base); }
@@ -144,11 +322,26 @@ def stylesheet(name: str) -> str:
     if name == SYSTEM or name not in THEMES:
         return SYSTEM_QSS
     p = dict(THEMES[name])
+    # corner radii and font are skin settings (Classic 98: square corners, 8pt MS Sans Serif)
+    p.setdefault("r_panel", "3px")
+    p.setdefault("r_rail", "4px")
+    p.setdefault("r", "2px")
+    p.setdefault("r_small", "1px")
+    p.setdefault("r_knob", "6px")
+    p.setdefault("font", FONT)
+    p.setdefault("font_size", "9pt")
     icons = _icons(name, p)
+    classic = p.get("style") == "classic98"
+    if classic:
+        w98 = _classic98_assets(system.cache_dir() / "skin" / name.replace(" ", "_"))
+        icons.update({k: w98[k] for k in ("cb_off", "cb_on", "cb_off_dis", "cb_on_dis", "rb_off", "rb_on") if k in w98})
+        icons["cb_off_hover"], icons["rb_off_hover"] = w98.get("cb_off", ""), w98.get("rb_off", "")
+        icons["down"], icons["up"] = w98.get("a_down", ""), w98.get("a_up", "")
+        icons["down_dim"], icons["up_dim"] = w98.get("a_down_dis", ""), w98.get("a_up_dis", "")
     p.update({k: icons.get(k, "") for k in ("down", "up", "down_dim", "up_dim", "cb_off", "cb_off_hover", "cb_on",
                                             "cb_off_dis", "cb_on_dis", "rb_off", "rb_off_hover", "rb_on")})
     return """
-* { font-family: %(FONT)s; font-size: 9pt; color: %(text)s; }
+* { font-family: %(font)s; font-size: %(font_size)s; color: %(text)s; }
 *:disabled { color: %(dim)s; }
 QMainWindow, QDialog { background: %(bg)s; }
 QWidget#central { background: %(bg)s; }
@@ -157,15 +350,15 @@ QToolTip { background: %(inset)s; color: %(text)s; border: 1px solid %(accent)s;
 /* panels: raised XP-style bevel */
 QFrame#panel, QFrame#rail, QFrame#header {
     background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 %(panel_top)s, stop:1 %(panel_bot)s);
-    border: 1px solid %(border)s; border-top-color: %(hilite)s; border-radius: 4px; }
-QFrame#rail { border-radius: 6px; }
+    border: 1px solid %(border)s; border-top-color: %(hilite)s; border-radius: %(r_panel)s; }
+QFrame#rail { border-radius: %(r_rail)s; }
 QLabel#railTitle { color: %(accent)s; font-weight: bold; letter-spacing: 1px; font-size: 8pt; }
 
 /* the LCD readout */
 QLabel#lcd, QLabel#lcdBig {
     background: %(lcd_bg)s; color: %(lcd_fg)s; font-family: %(MONO)s;
     border: 2px solid %(inset)s; border-bottom-color: %(hilite)s; border-right-color: %(hilite)s;
-    border-radius: 3px; padding: 0px 10px; }
+    border-radius: %(r)s; padding: 0px 10px; }
 QLabel#lcdBig { font-size: 11pt; font-weight: bold; }
 QLabel#lcdDim { color: %(lcd_dim)s; background: transparent; font-family: %(MONO)s; }
 
@@ -176,16 +369,16 @@ QLabel#fieldLabel { color: %(dim)s; }
 QLabel#dim { color: %(dim)s; }
 
 /* group boxes with XP task-pane title strips */
-QGroupBox { background: %(panel_bot)s; border: 1px solid %(border)s; border-radius: 4px;
+QGroupBox { background: %(panel_bot)s; border: 1px solid %(border)s; border-radius: %(r_panel)s;
     margin-top: 16px; padding: 14px 10px 10px 10px; }
 QGroupBox::title { subcontrol-origin: margin; subcontrol-position: top left; left: 6px; padding: 1px 8px;
-    color: %(text)s; font-weight: bold; border-radius: 3px;
+    color: %(text)s; font-weight: bold; border-radius: %(r)s;
     background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 %(title_top)s, stop:1 %(title_bot)s);
     border: 1px solid %(border)s; }
 
 /* inputs: one consistent height for every single-line control */
 QLineEdit, QSpinBox, QComboBox, QPlainTextEdit, QTextEdit, QListWidget {
-    background: %(inset)s; border: 1px solid %(border)s; border-radius: 3px;
+    background: %(inset)s; border: 1px solid %(border)s; border-radius: %(r)s;
     selection-background-color: %(sel)s; selection-color: %(sel_text)s; }
 QLineEdit, QSpinBox, QComboBox { min-height: 20px; padding: 0px 6px; color: %(text)s; }
 QSpinBox { selection-background-color: %(sel)s; selection-color: %(sel_text)s; }
@@ -201,8 +394,8 @@ QComboBox QAbstractItemView { background: %(inset)s; border: 1px solid %(accent)
 QSpinBox { padding-right: 20px; }
 QSpinBox::up-button, QSpinBox::down-button { subcontrol-origin: border; width: 18px;
     background: %(btn_bot)s; border: none; border-left: 1px solid %(border)s; }
-QSpinBox::up-button { subcontrol-position: top right; border-top-right-radius: 3px; }
-QSpinBox::down-button { subcontrol-position: bottom right; border-bottom-right-radius: 3px;
+QSpinBox::up-button { subcontrol-position: top right; border-top-right-radius: %(r)s; }
+QSpinBox::down-button { subcontrol-position: bottom right; border-bottom-right-radius: %(r)s;
     border-top: 1px solid %(border)s; }
 QSpinBox::up-button:hover, QSpinBox::down-button:hover { background: %(btn_top)s; }
 QSpinBox::up-arrow { image: url("%(up)s"); width: 7px; height: 7px; }
@@ -213,7 +406,7 @@ QPlainTextEdit#log { font-family: %(MONO)s; font-size: 8pt; color: %(lcd_fg)s; b
 /* glossy XP buttons */
 QPushButton, QToolButton {
     background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 %(btn_top)s, stop:0.5 %(btn_bot)s, stop:1 %(btn_bot)s);
-    border: 1px solid %(border)s; border-top-color: %(hilite)s; border-radius: 3px; padding: 1px 12px;
+    border: 1px solid %(border)s; border-top-color: %(hilite)s; border-radius: %(r)s; padding: 1px 12px;
     min-height: 22px; }
 QToolButton#transport { min-width: 28px; max-width: 28px; padding: 1px; }
 QToolButton#iconButton { padding: 0px; }
@@ -245,15 +438,15 @@ QRadioButton::indicator { width: 15px; height: 15px; background: transparent; bo
 QRadioButton::indicator:unchecked { image: url("%(rb_off)s"); }
 QRadioButton::indicator:unchecked:hover { image: url("%(rb_off_hover)s"); }
 QRadioButton::indicator:checked { image: url("%(rb_on)s"); }
-QSlider::groove:horizontal { height: 4px; background: %(inset)s; border: 1px solid %(border)s; border-radius: 2px; }
-QSlider::sub-page:horizontal { background: %(accent)s; border-radius: 2px; }
-QSlider::handle:horizontal { width: 12px; margin: -6px 0; border-radius: 6px; border: 1px solid %(border)s;
+QSlider::groove:horizontal { height: 4px; background: %(inset)s; border: 1px solid %(border)s; border-radius: %(r_small)s; }
+QSlider::sub-page:horizontal { background: %(accent)s; border-radius: %(r_small)s; }
+QSlider::handle:horizontal { width: 12px; margin: -6px 0; border-radius: %(r_knob)s; border: 1px solid %(border)s;
     background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 %(btn_top)s, stop:1 %(btn_bot)s); }
 QSlider::handle:horizontal:hover { border-color: %(accent)s; }
 
 /* track list */
 QTableWidget, QTableView { background: %(inset)s; alternate-background-color: %(alt)s;
-    gridline-color: %(panel_bot)s; border: 1px solid %(border)s; border-radius: 3px;
+    gridline-color: %(panel_bot)s; border: 1px solid %(border)s; border-radius: %(r)s;
     selection-background-color: %(sel)s; selection-color: %(sel_text)s; }
 QHeaderView::section { color: %(text)s; padding: 4px 6px; border: none;
     border-right: 1px solid %(border)s; border-bottom: 2px solid %(accent)s;
@@ -261,24 +454,26 @@ QHeaderView::section { color: %(text)s; padding: 4px 6px; border: none;
 QTableCornerButton::section { background: %(title_bot)s; border: none; }
 
 /* XP tabs: the selected tab gets the orange (accent) top line */
-QTabWidget::pane { border: 1px solid %(border)s; border-radius: 3px; background: %(panel_bot)s; top: -1px; }
+QTabBar { background: %(bg)s; qproperty-drawBase: 0; }
+QTabWidget::tab-bar { left: 0px; }
+QTabWidget::pane { border: 1px solid %(border)s; border-radius: %(r)s; background: %(panel_bot)s; top: -1px; }
 QTabBar::tab { background: %(btn_bot)s; border: 1px solid %(border)s; border-bottom: none;
-    padding: 5px 12px; margin-right: 2px; border-top-left-radius: 3px; border-top-right-radius: 3px;
+    padding: 5px 12px; margin-right: 2px; border-top-left-radius: %(r)s; border-top-right-radius: %(r)s;
     color: %(dim)s; }
 QTabBar::tab:selected { background: %(panel_bot)s; color: %(text)s; border-top: 3px solid %(accent)s; }
 QTabBar::tab:hover:!selected { color: %(text)s; }
 
 QProgressBar { background: %(lcd_bg)s; border: 1px solid %(inset)s; border-bottom-color: %(hilite)s;
-    border-radius: 3px; text-align: center; color: %(lcd_fg)s; font-family: %(MONO)s; height: 16px; }
-QProgressBar::chunk { border-radius: 2px;
+    border-radius: %(r)s; text-align: center; color: %(lcd_fg)s; font-family: %(MONO)s; height: 16px; }
+QProgressBar::chunk { border-radius: %(r_small)s;
     background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 %(lcd_fg)s, stop:1 %(lcd_dim)s); }
 
 QMenuBar { background: qlineargradient(x1:0,y1:0,x2:0,y2:1, stop:0 %(panel_top)s, stop:1 %(panel_bot)s);
     border-bottom: 1px solid %(border)s; }
 QMenuBar::item { padding: 4px 10px; background: transparent; }
-QMenuBar::item:selected { background: %(sel)s; border-radius: 3px; }
+QMenuBar::item:selected { background: %(sel)s; border-radius: %(r)s; }
 QMenu { background: %(panel_bot)s; border: 1px solid %(border)s; padding: 3px; }
-QMenu::item { padding: 5px 24px 5px 20px; border-radius: 2px; }
+QMenu::item { padding: 5px 24px 5px 20px; border-radius: %(r_small)s; }
 QMenu::item:selected { background: %(sel)s; color: %(sel_text)s; }
 QMenu::separator { height: 1px; background: %(border)s; margin: 4px 6px; }
 QStatusBar { background: %(panel_bot)s; border-top: 1px solid %(border)s; color: %(dim)s; }
@@ -289,11 +484,11 @@ QSplitter::handle:hover { background: %(accent)s; }
 QScrollBar:vertical { background: %(inset)s; width: 12px; margin: 0; }
 QScrollBar:horizontal { background: %(inset)s; height: 12px; margin: 0; }
 QScrollBar::handle { background: qlineargradient(x1:0,y1:0,x2:1,y2:0, stop:0 %(btn_top)s, stop:1 %(btn_bot)s);
-    border: 1px solid %(border)s; border-radius: 4px; min-height: 24px; min-width: 24px; }
+    border: 1px solid %(border)s; border-radius: %(r)s; min-height: 24px; min-width: 24px; }
 QScrollBar::handle:hover { border-color: %(accent)s; }
 QScrollBar::add-line, QScrollBar::sub-line { width: 0; height: 0; }
 QScrollBar::add-page, QScrollBar::sub-page { background: none; }
-""" % dict(p, FONT=FONT, MONO=MONO)
+""" % dict(p, FONT=FONT, MONO=MONO) + (CLASSIC98_QSS % w98 if classic else "")
 
 
 def colors(name: str) -> dict[str, str]:
@@ -310,3 +505,140 @@ def colors(name: str) -> dict[str, str]:
                 border=c(QPalette.Mid), good="#3fb950" if dark else "#1a7f37",
                 warn="#d29922" if dark else "#9a6700", bad="#f85149" if dark else "#cf222e",
                 accent=c(QPalette.Highlight), dim=c(QPalette.PlaceholderText))
+
+
+# --- skin files: share and import skins as JSON -----------------------------------------------------------
+# A skin file holds colours and a few settings - never code - so skins are safe to share. Bundled extra
+# skins live in the repo's skins/ folder (shipped with Spindle); imported ones in <data dir>/skins.
+import json as _json
+import re as _re
+
+BUILTIN_SKINS = tuple(THEMES)
+COLOR_KEYS = tuple(THEMES["Modern Night"])           # every colour a skin can set
+_HEX = _re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+_FONT = _re.compile(r"^[\w\s,'.-]{1,200}$")
+_SIZE = _re.compile(r"^\d{1,2}(?:pt|px)$")
+RADII = ("r", "r_panel", "r_rail", "r_small", "r_knob")
+skin_errors: list[str] = []                           # problems with skin files, shown in the log
+skin_files: dict[str, str] = {}                       # skin name -> the file it came from
+
+
+def bundled_skin_dir() -> Path:
+    return Path(__file__).resolve().parent.parent.parent / "skins"
+
+
+def user_skin_dir() -> Path:
+    return system.data_dir() / "skins"
+
+
+def parse_skin(data) -> tuple[str, dict]:
+    """Validate a skin file's contents. Returns (name, palette); raises ValueError saying what's wrong."""
+    if not isinstance(data, dict):
+        raise ValueError("a skin file must be a JSON object")
+    name = str(data.get("name", "")).strip()
+    if not name or len(name) > 40 or not _re.match(r"^[\w &'().,+-]+$", name):
+        raise ValueError("the skin needs a \"name\" (up to 40 letters, digits, spaces and & ' ( ) . , + -)")
+    if name == SYSTEM:
+        raise ValueError("\"System\" is taken by the built-in theme")
+    base = str(data.get("base") or "Modern Night")
+    if base not in THEMES or base == name:
+        raise ValueError(f"unknown \"base\" skin: {base}")
+    pal = {k: v for k, v in THEMES[base].items() if k in COLOR_KEYS}
+    colors_ = data.get("colors", {})
+    if not isinstance(colors_, dict):
+        raise ValueError("\"colors\" must be an object of name: \"#rrggbb\"")
+    for k, v in colors_.items():
+        if k not in COLOR_KEYS:
+            raise ValueError(f"unknown colour \"{k}\" (known: {', '.join(COLOR_KEYS)})")
+        if not isinstance(v, str) or not _HEX.match(v):
+            raise ValueError(f"colour \"{k}\" must look like #rrggbb, not {v!r}")
+        pal[k] = v
+    if "caption" in data:
+        if not isinstance(data["caption"], str) or not _HEX.match(data["caption"]):
+            raise ValueError("\"caption\" must look like #rrggbb")
+        pal["caption"] = data["caption"]
+    corners = data.get("corners", {})
+    if not isinstance(corners, dict):
+        raise ValueError("\"corners\" must be an object like {\"r\": 2, \"r_panel\": 3}")
+    for k, v in corners.items():
+        if k not in RADII or not isinstance(v, int) or not 0 <= v <= 20:
+            raise ValueError(f"corner \"{k}\" must be one of {', '.join(RADII)} with a whole number 0-20")
+        pal[k] = f"{v}px"
+    if "font" in data:
+        if not isinstance(data["font"], str) or not _FONT.match(data["font"]):
+            raise ValueError("\"font\" must be a list of font names, e.g. \"Tahoma, sans-serif\"")
+        pal["font"] = data["font"]
+    if "font_size" in data:
+        fs = f"{data['font_size']}pt" if isinstance(data["font_size"], int) else str(data["font_size"])
+        if not _SIZE.match(fs):
+            raise ValueError("\"font_size\" must be a number of points, e.g. 9")
+        pal["font_size"] = fs
+    if "style" in data:
+        if data["style"] != "classic98":
+            raise ValueError("\"style\" can only be \"classic98\" (Windows 98 bevels and icons)")
+        pal["style"] = "classic98"
+    return name, pal
+
+
+def _register(name: str, pal: dict, source: str) -> str:
+    if name in BUILTIN_SKINS:
+        name = f"{name} (custom)"
+    THEMES[name] = pal
+    skin_files[name] = source
+    return name
+
+
+def load_skins() -> None:
+    """(Re)load the bundled and imported skin files. Imported skins override bundled ones of the same name."""
+    for n in [n for n in THEMES if n not in BUILTIN_SKINS]:
+        del THEMES[n]
+    skin_files.clear()
+    skin_errors.clear()
+    for d in (bundled_skin_dir(), user_skin_dir()):
+        try:
+            files = sorted(d.glob("*.json"))
+        except OSError:
+            continue
+        for f in files:
+            try:
+                name, pal = parse_skin(_json.loads(f.read_text(encoding="utf-8")))
+                _register(name, pal, str(f))
+            except (OSError, ValueError) as e:
+                skin_errors.append(f"skin {f.name}: {e}")
+
+
+def _slug(name: str) -> str:
+    return _re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "skin"
+
+
+def import_skin(path: str) -> str:
+    """Check a skin file and copy it into the user's skins folder. Returns the skin's name."""
+    try:
+        data = _json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        raise ValueError(f"couldn't read {Path(path).name}: {e}") from e
+    name, pal = parse_skin(data)
+    d = user_skin_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    dest = d / f"{_slug(name)}.json"
+    dest.write_text(_json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return _register(name, pal, str(dest))
+
+
+def export_skin(name: str, path: str) -> None:
+    """Write a skin as a complete, editable skin file (every colour spelled out)."""
+    pal = THEMES[name]
+    data = {"spindle_skin": 1, "name": f"My {name}"[:40], "author": "", "base": name,
+            "colors": {k: pal[k] for k in COLOR_KEYS if k in pal}}
+    if "caption" in pal:
+        data["caption"] = pal["caption"]
+    corners = {k: int(str(pal[k]).rstrip("px")) for k in RADII if k in pal}
+    if corners:
+        data["corners"] = corners
+    for k in ("font", "font_size", "style"):
+        if k in pal:
+            data[k] = pal[k]
+    Path(path).write_text(_json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+load_skins()

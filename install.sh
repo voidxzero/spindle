@@ -58,6 +58,9 @@ find "$PREFIX/lib/spindle.new" -name __pycache__ -prune -exec rm -rf {} +
 if [[ -d "$PREFIX/lib/spindle" ]]; then mv "$PREFIX/lib/spindle" "$PREFIX/lib/spindle.old"; fi
 mv "$PREFIX/lib/spindle.new" "$PREFIX/lib/spindle"
 rm -rf "$PREFIX/lib/spindle.old"
+# bundled skins (the repo's skins/ folder) go next to the program; imported ones are in $PREFIX/skins
+rm -rf "$PREFIX/lib/skins"
+[[ -d "$SRC/skins" ]] && cp -r "$SRC/skins" "$PREFIX/lib/skins"
 
 # remember which GitHub repository this came from, so Spindle can check it for updates
 REPO="${SPINDLE_REPO:-}"

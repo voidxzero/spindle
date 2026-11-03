@@ -101,8 +101,10 @@ def apply(app: QApplication, skin: dict | None) -> None:
     _State.theme_colors = skin
     if skin is None:
         _system_look(app)
-    elif app.style().name().lower() != _State.native_style and _State.native_style:
-        app.setStyle(_State.native_style)            # skins style themselves; give them the native base
+    elif app.style().name().lower() != "fusion" and "fusion" in [k.lower() for k in QStyleFactory.keys()]:
+        # skins draw everything themselves; Fusion follows style sheets fully, where Windows 11's native
+        # style adds its own rounded corners and ignores parts of them
+        app.setStyle("Fusion")
         app.setPalette(app.style().standardPalette())
     for w in app.topLevelWidgets():
         if w.isVisible():
