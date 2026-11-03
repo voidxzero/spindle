@@ -1,6 +1,8 @@
 """Skins: Windows XP-style chrome in dark colours, Winamp-Modern flavoured."""
 from __future__ import annotations
 
+from pathlib import Path
+
 from .. import system
 
 THEMES: dict[str, dict[str, str]] = {
@@ -503,3 +505,140 @@ def colors(name: str) -> dict[str, str]:
                 border=c(QPalette.Mid), good="#3fb950" if dark else "#1a7f37",
                 warn="#d29922" if dark else "#9a6700", bad="#f85149" if dark else "#cf222e",
                 accent=c(QPalette.Highlight), dim=c(QPalette.PlaceholderText))
+
+
+# --- skin files: share and import skins as JSON -----------------------------------------------------------
+# A skin file holds colours and a few settings - never code - so skins are safe to share. Bundled extra
+# skins live in the repo's skins/ folder (shipped with Spindle); imported ones in <data dir>/skins.
+import json as _json
+import re as _re
+
+BUILTIN_SKINS = tuple(THEMES)
+COLOR_KEYS = tuple(THEMES["Modern Night"])           # every colour a skin can set
+_HEX = _re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+_FONT = _re.compile(r"^[\w\s,'.-]{1,200}$")
+_SIZE = _re.compile(r"^\d{1,2}(?:pt|px)$")
+RADII = ("r", "r_panel", "r_rail", "r_small", "r_knob")
+skin_errors: list[str] = []                           # problems with skin files, shown in the log
+skin_files: dict[str, str] = {}                       # skin name -> the file it came from
+
+
+def bundled_skin_dir() -> Path:
+    return Path(__file__).resolve().parent.parent.parent / "skins"
+
+
+def user_skin_dir() -> Path:
+    return system.data_dir() / "skins"
+
+
+def parse_skin(data) -> tuple[str, dict]:
+    """Validate a skin file's contents. Returns (name, palette); raises ValueError saying what's wrong."""
+    if not isinstance(data, dict):
+        raise ValueError("a skin file must be a JSON object")
+    name = str(data.get("name", "")).strip()
+    if not name or len(name) > 40 or not _re.match(r"^[\w &'().,+-]+$", name):
+        raise ValueError("the skin needs a \"name\" (up to 40 letters, digits, spaces and & ' ( ) . , + -)")
+    if name == SYSTEM:
+        raise ValueError("\"System\" is taken by the built-in theme")
+    base = str(data.get("base") or "Modern Night")
+    if base not in THEMES or base == name:
+        raise ValueError(f"unknown \"base\" skin: {base}")
+    pal = {k: v for k, v in THEMES[base].items() if k in COLOR_KEYS}
+    colors_ = data.get("colors", {})
+    if not isinstance(colors_, dict):
+        raise ValueError("\"colors\" must be an object of name: \"#rrggbb\"")
+    for k, v in colors_.items():
+        if k not in COLOR_KEYS:
+            raise ValueError(f"unknown colour \"{k}\" (known: {', '.join(COLOR_KEYS)})")
+        if not isinstance(v, str) or not _HEX.match(v):
+            raise ValueError(f"colour \"{k}\" must look like #rrggbb, not {v!r}")
+        pal[k] = v
+    if "caption" in data:
+        if not isinstance(data["caption"], str) or not _HEX.match(data["caption"]):
+            raise ValueError("\"caption\" must look like #rrggbb")
+        pal["caption"] = data["caption"]
+    corners = data.get("corners", {})
+    if not isinstance(corners, dict):
+        raise ValueError("\"corners\" must be an object like {\"r\": 2, \"r_panel\": 3}")
+    for k, v in corners.items():
+        if k not in RADII or not isinstance(v, int) or not 0 <= v <= 20:
+            raise ValueError(f"corner \"{k}\" must be one of {', '.join(RADII)} with a whole number 0-20")
+        pal[k] = f"{v}px"
+    if "font" in data:
+        if not isinstance(data["font"], str) or not _FONT.match(data["font"]):
+            raise ValueError("\"font\" must be a list of font names, e.g. \"Tahoma, sans-serif\"")
+        pal["font"] = data["font"]
+    if "font_size" in data:
+        fs = f"{data['font_size']}pt" if isinstance(data["font_size"], int) else str(data["font_size"])
+        if not _SIZE.match(fs):
+            raise ValueError("\"font_size\" must be a number of points, e.g. 9")
+        pal["font_size"] = fs
+    if "style" in data:
+        if data["style"] != "classic98":
+            raise ValueError("\"style\" can only be \"classic98\" (Windows 98 bevels and icons)")
+        pal["style"] = "classic98"
+    return name, pal
+
+
+def _register(name: str, pal: dict, source: str) -> str:
+    if name in BUILTIN_SKINS:
+        name = f"{name} (custom)"
+    THEMES[name] = pal
+    skin_files[name] = source
+    return name
+
+
+def load_skins() -> None:
+    """(Re)load the bundled and imported skin files. Imported skins override bundled ones of the same name."""
+    for n in [n for n in THEMES if n not in BUILTIN_SKINS]:
+        del THEMES[n]
+    skin_files.clear()
+    skin_errors.clear()
+    for d in (bundled_skin_dir(), user_skin_dir()):
+        try:
+            files = sorted(d.glob("*.json"))
+        except OSError:
+            continue
+        for f in files:
+            try:
+                name, pal = parse_skin(_json.loads(f.read_text(encoding="utf-8")))
+                _register(name, pal, str(f))
+            except (OSError, ValueError) as e:
+                skin_errors.append(f"skin {f.name}: {e}")
+
+
+def _slug(name: str) -> str:
+    return _re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "skin"
+
+
+def import_skin(path: str) -> str:
+    """Check a skin file and copy it into the user's skins folder. Returns the skin's name."""
+    try:
+        data = _json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as e:
+        raise ValueError(f"couldn't read {Path(path).name}: {e}") from e
+    name, pal = parse_skin(data)
+    d = user_skin_dir()
+    d.mkdir(parents=True, exist_ok=True)
+    dest = d / f"{_slug(name)}.json"
+    dest.write_text(_json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return _register(name, pal, str(dest))
+
+
+def export_skin(name: str, path: str) -> None:
+    """Write a skin as a complete, editable skin file (every colour spelled out)."""
+    pal = THEMES[name]
+    data = {"spindle_skin": 1, "name": f"My {name}"[:40], "author": "", "base": name,
+            "colors": {k: pal[k] for k in COLOR_KEYS if k in pal}}
+    if "caption" in pal:
+        data["caption"] = pal["caption"]
+    corners = {k: int(str(pal[k]).rstrip("px")) for k in RADII if k in pal}
+    if corners:
+        data["corners"] = corners
+    for k in ("font", "font_size", "style"):
+        if k in pal:
+            data[k] = pal[k]
+    Path(path).write_text(_json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+load_skins()

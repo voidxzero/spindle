@@ -8,6 +8,11 @@ Spindle for Linux has its own version numbers. Windows changes are in
   menus, Windows 98 icons, check boxes, radio buttons, scroll bars, slider thumbs, tabs, yellow
   tooltips and the blocky navy progress bar
 - Smaller corner radius in all skins
+- **Import skins** (*Settings ▸ Appearance*): skins are now small files anyone can make and share.
+  *Save a copy to edit…* writes any skin to a file to start from. A new skin, **Vapor Dusk**, comes
+  with Spindle as an example
+- Tidier Metadata and Cover art settings: the source list sits next to its Up/Down buttons
+- Links are readable in every skin
 
 ## 1.18.0
 - Five new skins in the style of classic Y2K media players (*Options ▸ Skin*): **Aqua Deck** (teal),

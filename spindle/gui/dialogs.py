@@ -813,6 +813,7 @@ class SettingsDialog(QDialog):
                          "Also needs the fpcalc tool (Fedora: <i>sudo dnf install chromaprint-tools</i>)."))
         hint.setOpenExternalLinks(True)
         hint.setWordWrap(True)
+        hint.setMinimumWidth(420)   # else the form wraps it into a narrow column
         hint.setObjectName("dim")
         f.addRow("", hint)
         self.tabs.addTab(w, "Metadata")
@@ -915,8 +916,70 @@ class SettingsDialog(QDialog):
         self.theme.setCurrentText(self.cfg["ui"]["theme"])
         self.theme.currentTextChanged.connect(lambda t: self.parent() and self.parent().apply_theme(t))
         f.addRow("Skin", self.theme)
+        row = QHBoxLayout()
+        row.setSpacing(8)
+        for text, slot, tip in (("Import skin…", self._import_skin, "Add a skin file (.json) someone made"),
+                                ("Save a copy to edit…", self._export_skin,
+                                 "Write the selected skin to a file you can edit and import as your own skin"),
+                                ("Open skins folder", self._open_skins, "")):
+            b = QPushButton(text)
+            b.clicked.connect(slot)
+            if tip:
+                b.setToolTip(tip)
+            row.addWidget(b)
+        row.addStretch(1)
+        f.addRow("", row)
+        from .themes import user_skin_dir
+        hint = QLabel(f"Skins are small .json files with colours and a few settings (no code), so they're safe "
+                      f"to share. Imported skins are kept in {user_skin_dir()}.")
+        hint.setObjectName("dim")
+        hint.setWordWrap(True)
+        hint.setMinimumWidth(420)
+        f.addRow("", hint)
         self.tabs.addTab(w, "Appearance")
         self._update_tab()
+
+    def _refresh_skins(self, select: str = ""):
+        cur = select or self.theme.currentText()
+        self.theme.blockSignals(True)
+        self.theme.clear()
+        self.theme.addItems(theme_names())
+        self.theme.blockSignals(False)
+        self.theme.setCurrentText(cur)
+
+    def _import_skin(self):
+        from .themes import import_skin
+        path, _ = QFileDialog.getOpenFileName(self, "Import skin", os.path.expanduser("~"), "Spindle skins (*.json)")
+        if not path:
+            return
+        try:
+            name = import_skin(path)
+        except ValueError as e:
+            QMessageBox.warning(self, "Import skin", f"That isn't a skin Spindle can use: {e}")
+            return
+        self._refresh_skins(select=name)          # selecting it previews it straight away
+        QMessageBox.information(self, "Import skin", f"Added the skin \"{name}\". Press Save to keep using it.")
+
+    def _export_skin(self):
+        from .themes import THEMES, _slug, export_skin
+        name = self.theme.currentText()
+        if name not in THEMES:
+            QMessageBox.information(self, "Save a copy", "Choose one of the skins first (System follows your "
+                                    "desktop and can't be saved as a skin).")
+            return
+        path, _ = QFileDialog.getSaveFileName(self, "Save a copy to edit",
+                                              os.path.join(os.path.expanduser("~"), f"my-{_slug(name)}.json"),
+                                              "Spindle skins (*.json)")
+        if path:
+            export_skin(name, path)
+            QMessageBox.information(self, "Save a copy", f"Saved. Edit the colours in {os.path.basename(path)}, "
+                                    "give it a new name, then use Import skin….")
+
+    def _open_skins(self):
+        from .themes import user_skin_dir
+        d = user_skin_dir()
+        d.mkdir(parents=True, exist_ok=True)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(d)))
 
     def _update_tab(self):
         from .. import __version__, updater

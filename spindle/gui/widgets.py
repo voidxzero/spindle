@@ -4,7 +4,7 @@ from __future__ import annotations
 from PySide6.QtCore import QPointF, QRectF, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QListWidget, QListWidgetItem,
-                               QPushButton, QSlider, QStyle, QStyledItemDelegate, QStyleOptionSlider,
+                               QPushButton, QSizePolicy, QSlider, QStyle, QStyledItemDelegate, QStyleOptionSlider,
                                QStyleOptionViewItem, QToolTip, QVBoxLayout, QWidget)
 
 PROGRESS_ROLE = Qt.UserRole + 1
@@ -148,16 +148,24 @@ class ProviderList(QWidget):
             it.setFlags(it.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsDragEnabled)
             it.setCheckState(Qt.Unchecked if n in disabled else Qt.Checked)
             self.list.addItem(it)
+        self.list.setToolTip("Tick the sources to use. Drag them, or use Up and Down, to change the order.")
+        lay.setSpacing(8)
         lay.addWidget(self.list, 1)
         col = QVBoxLayout()
+        col.setContentsMargins(0, 0, 0, 0)
         up, down = QPushButton("▲ Up"), QPushButton("▼ Down")
         up.clicked.connect(lambda: self._move(-1))
         down.clicked.connect(lambda: self._move(1))
-        col.addWidget(up)
-        col.addWidget(down)
+        for b in (up, down):
+            b.setMinimumWidth(80)
+            col.addWidget(b)
         col.addStretch(1)
         lay.addLayout(col)
-        self.list.setMaximumHeight(130)
+        # just tall enough for the sources (3 to 6 rows), and no taller: the form must not stretch the
+        # row, or the list floats in empty space away from its buttons
+        rows = max(3, min(6, self.list.count()))
+        self.list.setFixedHeight(rows * max(22, self.list.sizeHintForRow(0) + 4) + 2 * self.list.frameWidth() + 6)
+        self.setSizePolicy(self.sizePolicy().horizontalPolicy(), QSizePolicy.Fixed)
 
     def _move(self, d):
         row = self.list.currentRow()

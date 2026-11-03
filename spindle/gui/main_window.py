@@ -22,7 +22,7 @@ from .dialogs import CoverDialog, ReleaseDialog, SettingsDialog
 from .player import CDPlayer
 from .tagger_page import TaggerPage
 from . import icons
-from .themes import THEMES, colors, stylesheet, theme_names
+from .themes import BUILTIN_SKINS, THEMES, colors, stylesheet, theme_names
 from .widgets import (PROGRESS_ROLE, STATE_ROLE, CheckDelegate, CoverLabel, LoadingOverlay, SeekSlider,
                       Spinner, StatusDelegate, Visualizer, unify_heights)
 from . import sounds
@@ -646,14 +646,8 @@ class MainWindow(QMainWindow):
         act(m, "Select no tracks", lambda: self._check_all(False), "Ctrl+Shift+A")
         m = mb.addMenu("&Options")
         act(m, "Settings…", self.settings, "F9")
-        sk = m.addMenu("Skin")
-        grp = QActionGroup(self)
-        for name in theme_names():
-            a = QAction(name, self, checkable=True)
-            a.setChecked(name == self.cfg["ui"]["theme"])
-            a.triggered.connect(lambda _=False, n=name: self._set_theme(n))
-            grp.addAction(a)
-            sk.addAction(a)
+        self.skin_menu = m.addMenu("Skin")
+        self._fill_skin_menu()
         m = mb.addMenu("&Help")
         act(m, "Check for updates…", lambda: self.check_updates(manual=True))
         act(m, "Open log folder", self._open_log_folder)
@@ -673,7 +667,13 @@ class MainWindow(QMainWindow):
     def apply_theme(self, name):
         from . import winstyle
         winstyle.apply(QApplication.instance(), THEMES.get(name))   # Windows: dark/light + title bars
-        from PySide6.QtGui import QColor
+        from PySide6.QtGui import QColor, QPalette
+        app = QApplication.instance()
+        if not hasattr(self, "_native_link"):
+            self._native_link = app.palette().color(QPalette.Link)
+        pal = app.palette()                                         # links readable in every skin
+        pal.setColor(QPalette.Link, QColor(THEMES[name]["accent"]) if name in THEMES else self._native_link)
+        app.setPalette(pal)
         LoadingOverlay.skin = THEMES.get(name)                      # "Searching…" boxes in skin colours
         Spinner.default_color = QColor(THEMES[name]["accent"]) if name in THEMES else None
         QApplication.instance().setStyleSheet(stylesheet(name))
@@ -734,6 +734,21 @@ class MainWindow(QMainWindow):
         self.spinner.stop()
         self.overlay.finish()
 
+    def _fill_skin_menu(self):
+        """Options ▸ Skin: built-in skins, then the ones from skin files (refilled after an import)."""
+        self.skin_menu.clear()
+        self._skin_group = QActionGroup(self)
+        separated = False
+        for name in theme_names():
+            if name not in BUILTIN_SKINS and name != "System" and not separated:
+                self.skin_menu.addSeparator()             # skins from skin files below
+                separated = True
+            a = QAction(name, self, checkable=True)
+            a.setChecked(name == self.cfg["ui"]["theme"])
+            a.triggered.connect(lambda _=False, n=name: self._set_theme(n))
+            self._skin_group.addAction(a)
+            self.skin_menu.addAction(a)
+
     def _set_theme(self, name):
         self.cfg["ui"]["theme"] = name
         self.cfg.save()
@@ -751,6 +766,9 @@ class MainWindow(QMainWindow):
             self.log("⚠ No encoder for: " + ", ".join(missing) + " (install it or ffmpeg)")
         for e in metadata.plugin_errors:
             self.log(f"⚠ plugin error: {e}")
+        from .themes import skin_errors
+        for e in skin_errors:
+            self.log(f"⚠ {e}")
         try:
             import mutagen  # noqa: F401
         except ImportError:
@@ -1632,6 +1650,7 @@ class MainWindow(QMainWindow):
         else:
             self.cfg.__init__(self.cfg.path)   # discard any half-applied changes
         self.apply_theme(self.cfg["ui"]["theme"])
+        self._fill_skin_menu()                  # an imported skin shows up in Options ▸ Skin
 
     # ================================================================ updates
     def check_updates(self, manual: bool = False):
