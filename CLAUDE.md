@@ -49,7 +49,9 @@ spindle/
                      SeekSlider, ProviderList, unify_heights
     player.py        gapless CD playback (QAudioSink)
     cover_editor.py  crop/shape/rotate/trim/adjust/resize editor
-    themes.py        "System" theme + skins (Modern Night, Luna Midnight, Olive Noir, Amp Classic)
+    themes.py        "System" theme + skins (Modern Night, Luna Midnight, Olive Noir, Amp Classic, Aqua Deck,
+                     Ice Blue, Chrome Deck, Emerald Core, Classic 98). A skin is a palette; light skins work
+                     (Chrome Deck, Classic 98). Optional "caption" = Windows title bar colour
     winstyle.py      Windows: title bar colours (DWM), System theme follows dark/light (Fusion on Win10)
     icons.py         flat mono icons (System) and glossy XP-style icons (skins)
     sounds.py        finish chime / problem tone (synthesised, cached) or the user's own file

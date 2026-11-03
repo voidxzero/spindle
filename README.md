@@ -152,11 +152,12 @@ are copied, 24-bit audio stays 24-bit for lossless formats, and your originals a
 
 ## Look
 
-![Spindle's four skins: Modern Night, Amp Classic, Luna Midnight and Olive Noir](docs/skins.png)
+![Spindle's nine skins, from Modern Night to Classic 98](docs/skins.png)
 
-Spindle starts in **Modern Night** on Linux and **Amp Classic** on Windows. *Options ▸ Skin* also has
-**Luna Midnight**, **Olive Noir** and **System**, which follows your desktop's light or dark theme. On
-Windows the title bar takes the skin's colours too.
+Spindle starts in **Modern Night** on Linux and **Amp Classic** on Windows. *Options ▸ Skin* has nine
+skins in the style of classic media players, from the dark **Luna Midnight** and neon **Emerald Core**
+to the silver **Chrome Deck** and grey **Classic 98**, plus **System**, which follows your desktop's
+light or dark theme. On Windows the title bar takes the skin's colours too.
 
 ## More
 
