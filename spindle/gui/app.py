@@ -175,7 +175,11 @@ def selftest(app, report: str) -> int:
             except Exception as e:  # noqa: BLE001
                 results[fmt] = f"error: {e}"
         out["convert"] = results
-        out["ok"] = all(v is True for v in results.values()) and all(out["encoders"].values())
+        from .themes import BUILTIN_SKINS, THEMES, skin_errors
+        out["skins"] = [n for n in THEMES if n not in BUILTIN_SKINS]      # bundled skins/ was packaged
+        out["skin_errors"] = list(skin_errors)
+        out["ok"] = (all(v is True for v in results.values()) and all(out["encoders"].values())
+                     and bool(out["skins"]) and not skin_errors)
         out["release_flow"] = _selftest_release_flow(app)
     except Exception:  # noqa: BLE001
         out["error"] = traceback.format_exc()
