@@ -76,6 +76,35 @@ def test_callback_errors_dont_break_later_tasks():
     assert "bad" in seen and 2 in seen and any("bug in a callback" in x for x in logged), (seen, logged)
 
 
+def test_garbage_is_collected_on_the_gui_thread():
+    """Background threads make lots of cyclic garbage; every collection must still run on the GUI
+    thread (a collection on a worker thread can free Qt objects there: heap corruption on Windows)."""
+    import gc
+    gui = threading.get_ident()
+    threads = []
+
+    def note(phase, info):
+        if phase == "start":
+            threads.append(threading.get_ident())
+    workers.collect_garbage_on_gui_thread()
+    gc.callbacks.append(note)
+    try:
+        def churn(n):
+            for _ in range(n):
+                a, b = [], []
+                a.append(b); b.append(a)          # a reference cycle: only the collector frees it
+            return n
+        done = []
+        for _ in range(20):
+            workers.run_async(churn, 20000, on_done=done.append)
+        _pump_until(lambda: len(done) == 20)
+        _pump_until(lambda: len(threads) > 0, timeout=10)   # the GUI-thread timer has collected
+    finally:
+        gc.callbacks.remove(note)
+    assert threads and all(t == gui for t in threads), "garbage collected on a worker thread"
+    assert not gc.isenabled()
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):
