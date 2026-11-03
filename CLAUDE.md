@@ -174,6 +174,10 @@ install without touching the real one: `HOME=$(mktemp -d) ./install.sh --no-deps
 - Background work goes through `workers.run_async()` (Python thread pool + ONE long-lived dispatcher
   QObject). Never create a QObject per task or let Python garbage-collect QObjects that Qt may still be
   delivering to: on Windows that made Qt abort (1.15.1/1.16.0 crashes). Callback errors are logged.
+- Python's automatic garbage collection is **off**; `workers.collect_garbage_on_gui_thread()` runs it
+  on the GUI thread from a timer. A collection on a worker thread can free Qt objects there, which is
+  heap corruption on Windows (0xc0000374, 1.17.1). Don't re-enable `gc` or call `gc.collect()` off the
+  GUI thread.
 - Temporary WAVs go in `~/.cache/spindle/work` (`RipJob._work_root`), never the output folder. The
   owner's music folder is on an sshfs share, where re-reading big files can fail with EPERM. The
   output folder is only a fallback when local disk is short of space.

@@ -48,7 +48,8 @@ def main(argv=None) -> int:
 
     app = QApplication([sys.argv[0], *qt_args])
     crashlog.install_qt()
-    from . import winstyle
+    from . import winstyle, workers
+    workers.collect_garbage_on_gui_thread()   # Qt objects must never be freed on a worker thread
     winstyle.init(app)                    # Windows: title bars in the theme's colours, live dark/light
     app.setApplicationName(APP_NAME)
     app.setOrganizationName(APP_NAME)
@@ -144,6 +145,8 @@ def selftest(app, report: str) -> int:
     try:
         out["bin"] = str(system.bundled_bin() or "")
         out["encoders"] = encoders.availability()
+        from .main_window import MainWindow as _MW
+        _MW._maybe_offer_offset_setup = lambda self, before_rip=False: True   # nobody to answer prompts
         from ..disc import list_drives
         out["drives"] = [f"{d.name} ({d.device})" for d in list_drives()]   # Windows: real DeviceIoControl code
         from .main_window import MainWindow

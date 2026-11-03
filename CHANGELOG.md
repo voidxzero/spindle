@@ -3,6 +3,11 @@
 Spindle for Linux has its own version numbers. Windows changes are in
 [CHANGELOG-windows.md](CHANGELOG-windows.md) (versions 1.14.0-1.15.0 below were shared with Windows).
 
+## 1.17.2
+- Fixed a crash while loading release details after choosing a release ("heap corruption" on
+  Windows): Python's memory clean-up could run on a background thread and free parts of a window
+  that had just closed. Clean-up now always happens on the main thread
+
 ## 1.17.1
 - A track with sectors that couldn't be read is no longer marked *Success* just because two reads
   agree (identical reads of a bad spot prove nothing); it's marked as failed unless AccurateRip

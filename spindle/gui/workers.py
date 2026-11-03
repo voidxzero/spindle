@@ -50,6 +50,41 @@ def _get_dispatcher() -> _Dispatcher:
     return _dispatcher
 
 
+class _GuiThreadGC(QObject):
+    """Python's garbage collector runs on whichever thread happens to be allocating. If that's a worker
+    thread, it can destroy Qt objects left over from closed windows there - and Qt objects may only be
+    destroyed on the GUI thread: Windows reports heap corruption (0xc0000374) and Spindle dies (1.17.1,
+    while loading release details). So automatic collection is switched off and this runs it on the
+    GUI thread instead, by the same thresholds Python would use."""
+
+    def __init__(self, interval_ms: int = 500):
+        super().__init__()
+        from PySide6.QtCore import QTimer
+        import gc
+        self.gc = gc
+        self.thresholds = gc.get_threshold()
+        gc.disable()
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.check)
+        self.timer.start(interval_ms)
+
+    def check(self):
+        c0, c1, c2 = self.gc.get_count()
+        t0, t1, t2 = self.thresholds
+        if c0 > t0:
+            self.gc.collect(2 if c2 > t2 else 1 if c1 > t1 else 0)
+
+
+_gc_guard: _GuiThreadGC | None = None
+
+
+def collect_garbage_on_gui_thread() -> None:
+    """Call once, on the GUI thread, after creating the QApplication."""
+    global _gc_guard
+    if _gc_guard is None:
+        _gc_guard = _GuiThreadGC()
+
+
 def run_async(fn, *args, on_done=None, on_error=None, **kwargs) -> None:
     """Run fn(*args) on a worker thread; on_done(result) / on_error(message) run on the GUI thread."""
     d = _get_dispatcher()
