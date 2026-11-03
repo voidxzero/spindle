@@ -2,6 +2,13 @@
 
 Spindle for Windows has its own version numbers. Linux changes are in [CHANGELOG.md](CHANGELOG.md).
 
+## 1.19.0
+- **Classic 98** now really looks like Windows 98: square 3D bevels on buttons, fields, headers and
+  menus, Windows 98 icons, check boxes, radio buttons, scroll bars, slider thumbs, tabs, yellow
+  tooltips and the blocky navy progress bar
+- Smaller corner radius in all skins, and skins no longer pick up Windows 11's rounded controls
+- Fixed the white strip beside the tabs
+
 ## 1.18.0
 - Five new skins in the style of classic Y2K media players (*Options ▸ Skin*): **Aqua Deck** (teal),
   **Ice Blue** (glossy blue), **Chrome Deck** (brushed silver with a blue display), **Emerald Core**

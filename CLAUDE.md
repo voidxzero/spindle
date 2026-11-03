@@ -51,7 +51,11 @@ spindle/
     cover_editor.py  crop/shape/rotate/trim/adjust/resize editor
     themes.py        "System" theme + skins (Modern Night, Luna Midnight, Olive Noir, Amp Classic, Aqua Deck,
                      Ice Blue, Chrome Deck, Emerald Core, Classic 98). A skin is a palette; light skins work
-                     (Chrome Deck, Classic 98). Optional "caption" = Windows title bar colour
+                     (Chrome Deck, Classic 98). Optional "caption" = Windows title bar colour; corner
+                     radii (r, r_panel, r_rail, r_small, r_knob), font and font_size are per skin.
+                     style="classic98" adds CLASSIC98_QSS + pixel-exact bevel images (_classic98_assets),
+                     Win98 icons (icons.make_classic), 98 check boxes (CheckDelegate) and loading box.
+                     On Windows skins sit on the Fusion style (native Win11 style rounds/ignores QSS)
     winstyle.py      Windows: title bar colours (DWM), System theme follows dark/light (Fusion on Win10)
     icons.py         flat mono icons (System) and glossy XP-style icons (skins)
     sounds.py        finish chime / problem tone (synthesised, cached) or the user's own file

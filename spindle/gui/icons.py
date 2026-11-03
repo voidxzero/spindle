@@ -213,3 +213,63 @@ def make_glossy(name: str, accent: str) -> QIcon | None:
         icon.addPixmap(pm, QIcon.Normal)
         icon.addPixmap(_faded(pm, 0.35), QIcon.Disabled)
     return icon
+
+
+# --- Windows 98 icons (Classic 98 skin): flat colours, hard black outlines, no gloss -------------------
+_C98 = {
+    "disc": ('<circle cx="12" cy="12" r="10" fill="#dfdfdf" stroke="#000" stroke-width="1"/>'
+             '<path d="M12 2 A10 10 0 0 1 21.5 9" fill="none" stroke="#00c0c0" stroke-width="2"/>'
+             '<path d="M2.5 15 A10 10 0 0 0 9 21.5" fill="none" stroke="#c000c0" stroke-width="2"/>'
+             '<path d="M5 5 A10 10 0 0 1 9 2.5" fill="none" stroke="#ffffff" stroke-width="2"/>'
+             '<circle cx="12" cy="12" r="3.5" fill="#808080" stroke="#000" stroke-width="1"/>'
+             '<circle cx="12" cy="12" r="1.5" fill="#ffffff"/>'),
+    "search": ('<line x1="15" y1="15" x2="21" y2="21" stroke="#000" stroke-width="4" stroke-linecap="square"/>'
+               '<line x1="15" y1="15" x2="20.5" y2="20.5" stroke="#808000" stroke-width="2"/>'
+               '<circle cx="10" cy="10" r="7" fill="#c0ffff" stroke="#000" stroke-width="2"/>'
+               '<path d="M6 9 A4 4 0 0 1 9 6" fill="none" stroke="#ffffff" stroke-width="1.5"/>'),
+    "image": ('<rect x="2.5" y="4.5" width="19" height="15" fill="#ffffff" stroke="#000"/>'
+              '<rect x="4" y="6" width="16" height="12" fill="#00c0ff"/>'
+              '<polygon points="4,18 9,11 13,15 16,12 20,18" fill="#008000"/>'
+              '<circle cx="16.5" cy="8.5" r="1.8" fill="#ffff00" stroke="#808000" stroke-width="0.6"/>'),
+    "rip": ('<circle cx="12" cy="12" r="8" fill="#ff0000" stroke="#000" stroke-width="1"/>'
+            '<circle cx="12" cy="12" r="8" fill="none" stroke="#800000" stroke-width="1" stroke-dasharray="0 12.5 25 0"/>'
+            '<rect x="8" y="7" width="3" height="2" fill="#ffffff"/>'),
+    "imagefile": ('<polygon points="5.5,2.5 15.5,2.5 19.5,6.5 19.5,21.5 5.5,21.5" fill="#ffffff" stroke="#000"/>'
+                  '<polygon points="15.5,2.5 15.5,6.5 19.5,6.5" fill="#c0c0c0" stroke="#000"/>'
+                  '<circle cx="12.5" cy="14" r="4.5" fill="#dfdfdf" stroke="#000" stroke-width="1"/>'
+                  '<circle cx="12.5" cy="14" r="1.3" fill="#000"/>'),
+    "eject": '<polygon points="12,5 20,14 4,14" fill="#000"/><rect x="4" y="16" width="16" height="3" fill="#000"/>',
+    "close": '<rect x="4" y="5" width="16" height="3" fill="#000"/><polygon points="12,19 20,10 4,10" fill="#000"/>',
+    "settings": ('<path d="M10 2h4l.6 2.6 2.2 1 2.3-1.4 2.8 2.8-1.4 2.3 1 2.2L24 12v0l-2.5.6-1 2.2 1.4 2.3-2.8 2.8'
+                 '-2.3-1.4-2.2 1L14 22h-4l-.6-2.5-2.2-1-2.3 1.4-2.8-2.8 1.4-2.3-1-2.2L0 12l2.5-.6 1-2.2-1.4-2.3'
+                 ' 2.8-2.8 2.3 1.4 2.2-1z" transform="translate(1 1) scale(0.917)" fill="#c0c0c0" stroke="#000" '
+                 'stroke-width="1"/><circle cx="12" cy="12" r="3.3" fill="#ffffff" stroke="#000" stroke-width="1"/>'),
+    "folder": ('<polygon points="2.5,6.5 9.5,6.5 11.5,8.5 21.5,8.5 21.5,19.5 2.5,19.5" fill="#c0c000" stroke="#000"/>'
+               '<polygon points="2.5,19.5 5.5,10.5 23.5,10.5 20.5,19.5" fill="#ffff00" stroke="#000"/>'),
+    "prev": '<rect x="5" y="6" width="2" height="12" fill="#000"/><polygon points="19,6 19,18 8,12" fill="#000"/>',
+    "next": '<rect x="17" y="6" width="2" height="12" fill="#000"/><polygon points="5,6 5,18 16,12" fill="#000"/>',
+    "play": '<polygon points="8,5 8,19 18,12" fill="#000"/>',
+    "pause": '<rect x="7" y="6" width="3" height="12" fill="#000"/><rect x="14" y="6" width="3" height="12" fill="#000"/>',
+    "stop": '<rect x="7" y="7" width="10" height="10" fill="#000"/>',
+    "volume": ('<polygon points="3,9 7,9 12,4.5 12,19.5 7,15 3,15" fill="#c0c0c0" stroke="#000"/>'
+               '<path d="M15 9 Q17 12 15 15 M17.5 6.5 Q21 12 17.5 17.5" fill="none" stroke="#000" stroke-width="1.5"/>'),
+}
+
+
+def classic_svg(name: str, px: int = 24) -> str:
+    return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="{px}" height="{px}">'
+            f'{_C98.get(name, "")}</svg>')
+
+
+def make_classic(name: str) -> QIcon | None:
+    """Windows 98-style icon; disabled is drawn greyed out like 98 did (faded)."""
+    if name not in _C98:
+        return None
+    icon = QIcon()
+    for px in (16, 24, 32, 48, 64):
+        pm = QPixmap()
+        if not pm.loadFromData(QByteArray(classic_svg(name, px).encode()), "SVG"):
+            return None
+        icon.addPixmap(pm, QIcon.Normal)
+        icon.addPixmap(_faded(pm, 0.4), QIcon.Disabled)
+    return icon

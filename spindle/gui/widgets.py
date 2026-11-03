@@ -314,6 +314,19 @@ class LoadingOverlay(QWidget):
         p.fillRect(self.rect(), dim)
         # the card: a rounded panel with a subtle border, in the skin's panel colours or the palette's
         r = QRectF(self.card.geometry()).adjusted(0.5, 0.5, -0.5, -0.5)
+        if s and s.get("style") == "classic98":                  # a flat grey 98 panel with a raised bevel
+            rr = self.card.geometry()
+            p.fillRect(rr, QColor("#c0c0c0"))
+            for (x1, y1, x2, y2), col in (((rr.left(), rr.top(), rr.right(), rr.top()), "#ffffff"),
+                                          ((rr.left(), rr.top(), rr.left(), rr.bottom()), "#ffffff"),
+                                          ((rr.left(), rr.bottom(), rr.right(), rr.bottom()), "#000000"),
+                                          ((rr.right(), rr.top(), rr.right(), rr.bottom()), "#000000"),
+                                          ((rr.left() + 1, rr.bottom() - 1, rr.right() - 1, rr.bottom() - 1), "#808080"),
+                                          ((rr.right() - 1, rr.top() + 1, rr.right() - 1, rr.bottom() - 1), "#808080")):
+                p.setPen(QColor(col))
+                p.drawLine(x1, y1, x2, y2)
+            p.end()
+            return
         if s:
             g = QLinearGradient(0, r.top(), 0, r.bottom())
             g.setColorAt(0, QColor(s["panel_top"]))
@@ -457,6 +470,9 @@ class CheckDelegate(QStyledItemDelegate):
             style.drawPrimitive(QStyle.PE_IndicatorItemViewItemCheck, chk, painter, widget)
             return
         k = self.skin
+        if k.get("style") == "classic98":                                    # a Windows 98 check box
+            self._paint_98(painter, box, checked, enabled)
+            return
         hover = bool(option.state & QStyle.State_MouseOver)
         if checked:
             fill, edge = QColor(k["accent"] if enabled else k["dim"]), QColor(k["accent"] if enabled else k["dim"])
@@ -476,6 +492,28 @@ class CheckDelegate(QStyledItemDelegate):
             x, y, s = box.x(), box.y(), box.width()
             painter.drawPolyline([QPointF(x + s * .24, y + s * .52), QPointF(x + s * .42, y + s * .70),
                                   QPointF(x + s * .77, y + s * .30)])
+        painter.restore()
+
+    @staticmethod
+    def _paint_98(painter: QPainter, box: QRectF, checked: bool, enabled: bool):
+        r = box.toRect().adjusted(1, 1, -1, -1)                  # 13x13
+        x, y, w, h = r.x(), r.y(), r.width(), r.height()
+        painter.save()
+        painter.fillRect(r, QColor("#ffffff" if enabled else "#c0c0c0"))
+        for (x1, y1, x2, y2), col in (((x, y, x + w - 2, y), "#808080"), ((x, y, x, y + h - 2), "#808080"),
+                                      ((x + 1, y + 1, x + w - 3, y + 1), "#000000"),
+                                      ((x + 1, y + 1, x + 1, y + h - 3), "#000000"),
+                                      ((x, y + h - 1, x + w - 1, y + h - 1), "#ffffff"),
+                                      ((x + w - 1, y, x + w - 1, y + h - 1), "#ffffff"),
+                                      ((x + 1, y + h - 2, x + w - 2, y + h - 2), "#dfdfdf"),
+                                      ((x + w - 2, y + 1, x + w - 2, y + h - 2), "#dfdfdf")):
+            painter.setPen(QColor(col))
+            painter.drawLine(x1, y1, x2, y2)
+        if checked:                                              # 98's chunky three-pixel tick
+            painter.setPen(QPen(QColor("#000000" if enabled else "#808080"), 1))
+            for dx in range(3):
+                painter.drawLine(x + 3, y + 5 + dx, x + 5, y + 7 + dx)
+                painter.drawLine(x + 5, y + 7 + dx, x + 9, y + 3 + dx)
         painter.restore()
 
     def editorEvent(self, event, model, option, index):

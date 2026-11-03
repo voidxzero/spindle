@@ -165,7 +165,9 @@ class MainWindow(QMainWindow):
     def _apply_mono(self, widget, key, fallback):
         """Flat line icons for the System theme; glossy full-colour XP-style icons for the skins."""
         theme = self.cfg["ui"]["theme"]
-        if theme in THEMES:
+        if theme in THEMES and THEMES[theme].get("style") == "classic98":
+            ic = icons.make_classic(key) or icons.make_glossy(key, colors(theme)["accent"])
+        elif theme in THEMES:
             ic = icons.make_glossy(key, colors(theme)["accent"])
         else:
             fg, bg = self._icon_colors()
